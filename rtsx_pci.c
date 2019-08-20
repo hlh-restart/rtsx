@@ -69,9 +69,9 @@
 
 #define ISSET(t, f) ((t) & (f))
 
-#define READ4(sc, reg)								\
+#define READ4(sc, reg)						\
 	(bus_space_read_4((sc)->iot, (sc)->ioh, (reg)))
-#define WRITE4(sc, reg, val)						\
+#define WRITE4(sc, reg, val)					\
 	bus_space_write_4((sc)->iot, (sc)->ioh, (reg), (val))
 
 #define	RTSX_READ(sc, reg, val) 				\
@@ -103,7 +103,7 @@
 
 
 /* The softc holds our per-instance data. */
-struct mypci_softc {
+struct rtsx_pci_softc {
   //	struct 	sc_dev;
   device_t	my_dev;
   struct cdev	*my_cdev;
@@ -125,38 +125,38 @@ struct mypci_softc {
   struct resource * bar0res;
 };
 /*
-struct mypci_softc {
+struct rtsx_pci_softc {
   device_t	my_dev;
   struct cdev	*my_cdev;
 };
 */
 /* Function prototypes */
-static d_open_t		mypci_open;
-static d_close_t	mypci_close;
-static d_read_t		mypci_read;
-static d_write_t	mypci_write;
+static d_open_t		rtsx_pci_open;
+static d_close_t	rtsx_pci_close;
+static d_read_t		rtsx_pci_read;
+static d_write_t	rtsx_pci_write;
 
 /* Character device entry points */
 
-static struct cdevsw mypci_cdevsw = {
+static struct cdevsw rtsx_pci_cdevsw = {
 	.d_version =	D_VERSION,
-	.d_open =	mypci_open,
-	.d_close =	mypci_close,
-	.d_read =	mypci_read,
-	.d_write =	mypci_write,
+	.d_open =	rtsx_pci_open,
+	.d_close =	rtsx_pci_close,
+	.d_read =	rtsx_pci_read,
+	.d_write =	rtsx_pci_write,
 	.d_name =	"rtsx",
 };
 
 /*
  * OpenBSD rtsx.c function declarations
  */
-int	rtsx_bus_power_on(struct mypci_softc *);
-int	rtsx_read(struct mypci_softc *, u_int16_t, u_int8_t *);
-int	rtsx_write(struct mypci_softc *, u_int16_t, u_int8_t, u_int8_t);
-int rtsx_write_phy(struct mypci_softc *sc, u_int8_t addr, u_int16_t val);
-int rtsx_init(struct mypci_softc *sc, int attaching);
-int rtsx_card_detect(struct mypci_softc *sch);
-int rtsx_read_cfg(struct mypci_softc *sc, u_int8_t func, u_int16_t addr, u_int32_t *val);
+int rtsx_bus_power_on(struct rtsx_pci_softc *);
+int rtsx_read(struct rtsx_pci_softc *, u_int16_t, u_int8_t *);
+int rtsx_write(struct rtsx_pci_softc *, u_int16_t, u_int8_t, u_int8_t);
+int rtsx_write_phy(struct rtsx_pci_softc *sc, u_int8_t addr, u_int16_t val);
+int rtsx_init(struct rtsx_pci_softc *sc, int attaching);
+int rtsx_card_detect(struct rtsx_pci_softc *sch);
+int rtsx_read_cfg(struct rtsx_pci_softc *sc, u_int8_t func, u_int16_t addr, u_int32_t *val);
 
 /*
  * FreeBSD PCI probe, attach etc. fu 
@@ -164,14 +164,14 @@ int rtsx_read_cfg(struct mypci_softc *sc, u_int8_t func, u_int16_t addr, u_int32
 
 
 int
-rtsx_card_detect(struct mypci_softc *sch)
+rtsx_card_detect(struct rtsx_pci_softc *sch)
 {
-	struct mypci_softc *sc = sch;
+	struct rtsx_pci_softc *sc = sch;
 	return ISSET(sc->flags, RTSX_F_CARD_PRESENT);
 }
 
 int
-rtsx_read(struct mypci_softc *sc, u_int16_t addr, u_int8_t *val)
+rtsx_read(struct rtsx_pci_softc *sc, u_int16_t addr, u_int8_t *val)
 {
 	int tries = 1024;
 	u_int32_t reg;
@@ -190,7 +190,7 @@ rtsx_read(struct mypci_softc *sc, u_int16_t addr, u_int8_t *val)
 }
 
 int
-rtsx_read_cfg(struct mypci_softc *sc, u_int8_t func, u_int16_t addr, u_int32_t *val)
+rtsx_read_cfg(struct rtsx_pci_softc *sc, u_int8_t func, u_int16_t addr, u_int32_t *val)
 {
 	int tries = 1024;
 	u_int8_t data0, data1, data2, data3, rwctl;
@@ -219,7 +219,7 @@ rtsx_read_cfg(struct mypci_softc *sc, u_int8_t func, u_int16_t addr, u_int32_t *
 }
 
 int
-rtsx_write(struct mypci_softc *sc, u_int16_t addr, u_int8_t mask, u_int8_t val)
+rtsx_write(struct rtsx_pci_softc *sc, u_int16_t addr, u_int8_t mask, u_int8_t val)
 {
 	int tries = 1024;
 	u_int32_t reg;
@@ -241,7 +241,7 @@ rtsx_write(struct mypci_softc *sc, u_int16_t addr, u_int8_t mask, u_int8_t val)
 }
 
 int
-rtsx_write_phy(struct mypci_softc *sc, u_int8_t addr, u_int16_t val)
+rtsx_write_phy(struct rtsx_pci_softc *sc, u_int8_t addr, u_int16_t val)
 {
 	int timeout = 100000;
 	u_int8_t rwctl;
@@ -264,7 +264,7 @@ rtsx_write_phy(struct mypci_softc *sc, u_int8_t addr, u_int16_t val)
 }
 
 int
-rtsx_bus_power_on(struct mypci_softc *sc)
+rtsx_bus_power_on(struct rtsx_pci_softc *sc)
 {
 	u_int8_t enable3;
 	int err;
@@ -321,7 +321,7 @@ rtsx_bus_power_on(struct mypci_softc *sc)
 
 
 int
-rtsx_init(struct mypci_softc *sc, int attaching)
+rtsx_init(struct rtsx_pci_softc *sc, int attaching)
 {
 	u_int32_t status;
 	u_int8_t version;
@@ -434,9 +434,9 @@ rtsx_init(struct mypci_softc *sc, int attaching)
  */
 
 int
-mypci_open(struct cdev *dev, int oflags, int devtype, struct thread *td)
+rtsx_pci_open(struct cdev *dev, int oflags, int devtype, struct thread *td)
 {
-	struct mypci_softc *sc;
+	struct rtsx_pci_softc *sc;
 
 	/* Look up our softc. */
 	sc = dev->si_drv1;
@@ -445,9 +445,9 @@ mypci_open(struct cdev *dev, int oflags, int devtype, struct thread *td)
 }
 
 int
-mypci_close(struct cdev *dev, int fflag, int devtype, struct thread *td)
+rtsx_pci_close(struct cdev *dev, int fflag, int devtype, struct thread *td)
 {
-	struct mypci_softc *sc;
+	struct rtsx_pci_softc *sc;
 
 	/* Look up our softc. */
 	sc = dev->si_drv1;
@@ -456,9 +456,9 @@ mypci_close(struct cdev *dev, int fflag, int devtype, struct thread *td)
 }
 
 int
-mypci_read(struct cdev *dev, struct uio *uio, int ioflag)
+rtsx_pci_read(struct cdev *dev, struct uio *uio, int ioflag)
 {
-	struct mypci_softc *sc;
+	struct rtsx_pci_softc *sc;
 
 	/* Look up our softc. */
 	sc = dev->si_drv1;
@@ -467,9 +467,9 @@ mypci_read(struct cdev *dev, struct uio *uio, int ioflag)
 }
 
 int
-mypci_write(struct cdev *dev, struct uio *uio, int ioflag)
+rtsx_pci_write(struct cdev *dev, struct uio *uio, int ioflag)
 {
-	struct mypci_softc *sc;
+	struct rtsx_pci_softc *sc;
 
 	/* Look up our softc. */
 	sc = dev->si_drv1;
@@ -484,7 +484,7 @@ mypci_write(struct cdev *dev, struct uio *uio, int ioflag)
  * supports.  If there is a match, set the description and return success.
  */
 static int
-mypci_probe(device_t dev)
+rtsx_pci_probe(device_t dev)
 {
   /*none2@pci0:2:0:0:       class=0xff0000 card=0x221417aa chip=0x522710ec rev=0x01 hdr=0x00
     vendor     = 'Realtek Semiconductor Co., Ltd.'
@@ -509,9 +509,9 @@ Device ID : 0x5227
 /* Attach function is only called if the probe is successful. */
 
 static int
-mypci_attach(device_t dev)
+rtsx_pci_attach(device_t dev)
 {
-	struct mypci_softc *sc;
+	struct rtsx_pci_softc *sc;
 	// int rsegs;
 	 u_int32_t sdio_cfg;
 	printf("attaching deviceID: 0x%x\n", pci_get_devid(dev));
@@ -575,7 +575,7 @@ mypci_attach(device_t dev)
 	 * device as the minor number and name the character device
 	 * "mypci<unit>".
 	 */
-	sc->my_cdev = make_dev(&mypci_cdevsw, device_get_unit(dev),
+	sc->my_cdev = make_dev(&rtsx_pci_cdevsw, device_get_unit(dev),
 	    UID_ROOT, GID_WHEEL, 0600, "rtsx%u", device_get_unit(dev));
 	sc->my_cdev->si_drv1 = sc;
 	printf("rtsx device loaded.\n");
@@ -603,9 +603,9 @@ destroy_cmd:
 /* Detach device. */
 
 static int
-mypci_detach(device_t dev)
+rtsx_pci_detach(device_t dev)
 {
-	struct mypci_softc *sc;
+	struct rtsx_pci_softc *sc;
 
 	/* Teardown the state in our softc created in our attach routine. */
 	sc = device_get_softc(dev);
@@ -617,7 +617,7 @@ mypci_detach(device_t dev)
 /* Called during system shutdown after sync. */
 
 static int
-mypci_shutdown(device_t dev)
+rtsx_pci_shutdown(device_t dev)
 {
 
 	printf("rtsx shutdown!\n");
@@ -628,7 +628,7 @@ mypci_shutdown(device_t dev)
  * Device suspend routine.
  */
 static int
-mypci_suspend(device_t dev)
+rtsx_pci_suspend(device_t dev)
 {
 
 	printf("rtsx suspend!\n");
@@ -639,7 +639,7 @@ mypci_suspend(device_t dev)
  * Device resume routine.
  */
 static int
-mypci_resume(device_t dev)
+rtsx_pci_resume(device_t dev)
 {
 
 	printf("rtsx resume!\n");
@@ -648,12 +648,12 @@ mypci_resume(device_t dev)
 
 static device_method_t rtsx_pci_methods[] = {
 	/* Device interface */
-	DEVMETHOD(device_probe,		mypci_probe),
-	DEVMETHOD(device_attach,	mypci_attach),
-	DEVMETHOD(device_detach,	mypci_detach),
-	DEVMETHOD(device_shutdown,	mypci_shutdown),
-	DEVMETHOD(device_suspend,	mypci_suspend),
-	DEVMETHOD(device_resume,	mypci_resume),
+	DEVMETHOD(device_probe,		rtsx_pci_probe),
+	DEVMETHOD(device_attach,	rtsx_pci_attach),
+	DEVMETHOD(device_detach,	rtsx_pci_detach),
+	DEVMETHOD(device_shutdown,	rtsx_pci_shutdown),
+	DEVMETHOD(device_suspend,	rtsx_pci_suspend),
+	DEVMETHOD(device_resume,	rtsx_pci_resume),
 
 	/* Bus interface */
 	//	DEVMETHOD(bus_read_ivar,	sdhci_generic_read_ivar),
@@ -681,19 +681,18 @@ static device_method_t rtsx_pci_methods[] = {
 static driver_t rtsx_pci_driver = {
         "rtsx_pci",
         rtsx_pci_methods,
-        sizeof(struct mypci_softc),
+        sizeof(struct rtsx_pci_softc),
 };
 /*
-static devclass_t sdhci_mypci_devclass;
+static devclass_t sdhci_rtsx_pci_devclass;
 
-DRIVER_MODULE(mypci_rtsx, pci, sdhci_mypci_driver, sdhci_mypci_devclass, NULL, NULL);
-MODULE_DEPEND(mypci_rtsx, sdhci, 1, 1, 1);
-MMC_DECLARE_BRIDGE(mypci_rtsx);
+DRIVER_MODULE(rtsx_pci_rtsx, pci, sdhci_rtsx_pci_driver, sdhci_rtsx_pci_devclass, NULL, NULL);
+MODULE_DEPEND(rtsx_pci_rtsx, sdhci, 1, 1, 1);
+MMC_DECLARE_BRIDGE(rtsx_pci_rtsx);
 */
 
 
 static devclass_t rtsx_pci_devclass;
 
-//DEFINE_CLASS_0(rtsx, rtsx_driver, rtsx_methods, sizeof(struct mypci_softc));  // old pre 5.1 compilant stuff
+//DEFINE_CLASS_0(rtsx, rtsx_driver, rtsx_methods, sizeof(struct rtsx_pci_softc));  // old pre 5.1 compilant stuff
 DRIVER_MODULE(rtsx_pci, pci, rtsx_pci_driver, rtsx_pci_devclass, 0, 0);
-
