@@ -19,7 +19,10 @@
  *
  * Port to freeBSD
  *
- * Copyright (c) 2019 Henri Hennebert <hlh@restart.be>
+ * Started by Raul Becker < raul.becker@iki.fi>
+ *
+ * Continued by Henri Hennebert <hlh@restart.be>
+ *
  */ 
 
 /*
@@ -212,7 +215,7 @@ rtsx_pci_attach(device_t dev)
 	sc->rtsx_irq_res = bus_alloc_resource_any(dev, SYS_RES_IRQ, &sc->rtsx_irq_res_id,
 						  RF_ACTIVE | (sc->rtsx_irq_res_id != 0 ? 0 : RF_SHAREABLE));
 	if (sc->rtsx_irq_res == NULL) {
-		device_printf(dev, "couldn't allocate IRQ resources for %d\n", sc->rtsx_irq_res_id);
+		device_printf(dev, "can't allocate IRQ resources for %d\n", sc->rtsx_irq_res_id);
 		pci_release_msi(dev);
 		return 1;
 	}
@@ -221,7 +224,7 @@ rtsx_pci_attach(device_t dev)
 	sc->rtsx_res_id = PCIR_BAR(0);
 	sc->rtsx_res = bus_alloc_resource_any(dev, SYS_RES_MEMORY, &sc->rtsx_res_id, RF_ACTIVE);
 	if (sc->rtsx_res == NULL) {
-		device_printf(dev, "couldn't allocate memory resource for %d\n", sc->rtsx_res_id);
+		device_printf(dev, "can't allocate memory resource for %d\n", sc->rtsx_res_id);
 		goto destroy_rtsx_irq_res;
 	}
 	sc->rtsx_btag = rman_get_bustag(sc->rtsx_res);
@@ -231,7 +234,7 @@ rtsx_pci_attach(device_t dev)
 	error = bus_setup_intr(dev, sc->rtsx_irq_res, INTR_TYPE_MISC,
 			       NULL, rtsx_intr, sc, &sc->rtsx_irq_cookie);
 	if (error) {
-		device_printf(dev, "couldn't set up irq [0x%x]!\n", error);
+		device_printf(dev, "can't set up irq [0x%x]!\n", error);
 		goto destroy_rtsx_res;
 	}
 	pci_enable_busmaster(dev);
@@ -241,7 +244,7 @@ rtsx_pci_attach(device_t dev)
 		device_printf(dev, "Error during rtsx_init()\n");
 		goto destroy_rtsx_irq;
 	}
-
+	
 	if (rtsx_read_cfg(sc, 0, RTSX_SDIOCFG_REG, &sdio_cfg) == 0) {
 		if ((sdio_cfg & RTSX_SDIOCFG_SDIO_ONLY) ||
 		    (sdio_cfg & RTSX_SDIOCFG_HAVE_SDIO))
@@ -292,7 +295,8 @@ rtsx_pci_detach(device_t dev)
 {
 	struct rtsx_pci_softc *sc = device_get_softc(dev);
 
-	device_printf(dev, "Detach deviceID: 0x%x\n", pci_get_devid(dev));
+	device_printf(dev, "Detach - Vendor ID: 0x%x - Device ID: 0x%x\n",
+		      pci_get_vendor(dev), pci_get_device(dev));
 	
 	/* Teardown the state in our softc created in our attach routine. */
 	rtsx_dma_free(sc);
@@ -400,6 +404,7 @@ static devclass_t rtsx_pci_devclass;
 DEFINE_CLASS_0(rtsx_pci, rtsx_pci_driver, rtsx_pci_methods, sizeof(struct rtsx_pci_softc));
 DRIVER_MODULE(rtsx_pci, pci, rtsx_pci_driver, rtsx_pci_devclass, NULL, NULL);
 MODULE_DEPEND(rtsx_pci, rtsx, 1, 1, 1);
+MMC_DECLARE_BRIDGE(sdhci_acpi);
 /*
 DRIVER_MODULE(mmc, rtsx_pci, mmc_driver, mmc_devclass, NULL, NULL);
 MODULE_DEPEND(rtsx_pci, mmc, 1, 1, 1);

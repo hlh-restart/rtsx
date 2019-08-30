@@ -19,7 +19,10 @@
  *
  * Port to freeBSD
  *
- * Copyright (c) 2019 Henri Hennebert <hlh@restart.be>
+ * Started by Raul Becker < raul.becker@iki.fi>
+ *
+ * Continued by Henri Hennebert <hlh@restart.be>
+ *
  */ 
 
 /* 
@@ -84,6 +87,16 @@
 #define	RTSX_DMA_DATA_BUFSIZE	MAXPHYS
 #define	RTSX_ADMA_DESC_SIZE	(sizeof(uint64_t) * SDMMC_MAXNSEGS)
 
+static void
+rtsx_dmamap_cb(void *arg, bus_dma_segment_t *segs, int nsegs, int error)
+{
+        if (error != 0) {
+                printf("rtsx_dmamap_cb: error %d\n", error);
+                return;
+        }
+        *(bus_addr_t *)arg = segs[0].ds_addr;
+}
+
 int
 rtsx_dma_alloc(struct rtsx_pci_softc *sc) {
 	int	error = 0;
@@ -101,19 +114,32 @@ rtsx_dma_alloc(struct rtsx_pci_softc *sc) {
 	    &sc->rtsx_dma_tag);
 	if (error) {
                 device_printf(sc->rtsx_dev,
-			      "couldn't create parent DMA tag\n");
+			      "can't create parent DMA tag\n");
 		return error;
 	}
 	
-	error = bus_dmamem_alloc(sc->rtsx_dma_tag,
-				 &sc->rtsx_dmamem_cmd,
-				 BUS_DMA_NOWAIT,
-				 &sc->rtsx_dmamap_cmd);
+	error = bus_dmamem_alloc(sc->rtsx_dma_tag,	/* DMA tag */
+				 &sc->rtsx_cmd_dmamem,	/* will hold the KVA pointer */
+				 BUS_DMA_NOWAIT, 	/* flags */
+				 &sc->rtsx_cmd_dmamap); /* DMA map */
 	if (error) {
                 device_printf(sc->rtsx_dev,
-			      "couldn't create DMA map for command transfer\n");
-		return error;
+			      "can't create DMA map for command transfer\n");
+		goto destroy_dma_tag;
 	}
+	error = bus_dmamap_load(sc->rtsx_dma_tag,	/* DMA tag */
+				sc->rtsx_cmd_dmamap,	/* DMA map */
+				sc->rtsx_cmd_dmamem,	/* KVA pointer to be mapped */
+				RTSX_HOSTCMD_BUFSIZE,	/* size of buffer */
+				rtsx_dmamap_cb,		/* callback */
+				&sc->rtsx_cmd_buffer,	/* first arg of callback */
+				0);			/* flafs */
+	if (error != 0 || sc->rtsx_cmd_buffer == 0) {
+                device_printf(sc->rtsx_dev,
+			      "Can't load DMA memory for command transfer\n");
+                error = (error) ? error : EFAULT;
+		goto destroy_cmd_dmamem_alloc;
+        }
 	/*
 	if (bus_dmamap_create(sc->dmat, RTSX_DMA_DATA_BUFSIZE, 1,
 	    RTSX_DMA_MAX_SEGSIZE, 0, BUS_DMA_NOWAIT,
@@ -140,31 +166,33 @@ destroy_adma:
 	bus_dmamap_destroy(sc->dmat, sc->dmap_adma);
 destroy_data:
 	bus_dmamap_destroy(sc->dmat, sc->dmap_data);
-destroy_cmd:
-	bus_dmamap_destroy(sc->dmat, sc->dmap_cmd);
 	---*/
+ destroy_cmd_dmamem_alloc:
+	bus_dmamem_free(sc->rtsx_dma_tag, sc->rtsx_cmd_dmamem, sc->rtsx_cmd_dmamap);
+ destroy_dma_tag:
+	bus_dma_tag_destroy(sc->rtsx_dma_tag);
+
 	return error;
 }
 
 void
 rtsx_dma_free(struct rtsx_pci_softc *sc) {
 
-	if (sc->rtsx_dma_tag != NULL)
-		/*
-		if (sc->rtsx_dmap_adma != NULL)
-                        bus_dmamap_unload(sc->rl_cdata.rl_rx_tag,
-                            sc->rl_cdata.rl_rx_dmamap);
-                if (sc->rtsx_dmap_adma != NULL)
-                        bus_dmamem_free(,
-                            sc->rl_cdata.rl_rx_buf_ptr,
-                            sc->rl_cdata.rl_rx_dmamap);
-                sc->rl_cdata.rl_rx_buf_ptr = NULL;
-                sc->rl_cdata.rl_rx_buf = NULL;
-                sc->rl_cdata.rl_rx_buf_paddr = 0;
-		*/
+	if (sc->rtsx_dma_tag != NULL) {
+		if (sc->rtsx_cmd_dmamap != NULL)
+                        bus_dmamap_unload(sc->rtsx_dma_tag,
+					  sc->rtsx_cmd_dmamap);
+                if (sc->rtsx_cmd_dmamem != NULL)
+                        bus_dmamem_free(sc->rtsx_dma_tag,
+					sc->rtsx_cmd_dmamem,
+					sc->rtsx_cmd_dmamap);
+		sc->rtsx_cmd_dmamap = NULL;
+		sc->rtsx_cmd_dmamem = NULL;
+                sc->rtsx_cmd_buffer = NULL;
                 bus_dma_tag_destroy(sc->rtsx_dma_tag);
                 sc->rtsx_dma_tag = NULL;
-        }
+	}
+}
 	
 /*
  *
@@ -431,7 +459,7 @@ rtsx_init(struct rtsx_pci_softc *sc, int attaching)
 	else
 		error = rtsx_write_phy(sc, 0x00, 0xBA42);
 	if (error) {
-		device_printf(sc->rtsx_dev, "couldn't write phy register\n");
+		device_printf(sc->rtsx_dev, "can't write phy register\n");
 		return 1;
 	}
 

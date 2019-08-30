@@ -1,5 +1,3 @@
-/*	$OpenBSD: rtsxreg.h,v 1.4 2017/09/06 13:07:38 jcs Exp $	*/
-
 /*
  *
  * From OpenBSD /sys/dev/ic/rtsxreg.h 

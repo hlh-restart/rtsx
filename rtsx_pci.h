@@ -19,7 +19,10 @@
  *
  * Port to freeBSD
  *
- * Copyright (c) 2019 Henri Hennebert <hlh@restart.be>
+ * Started by Raul Becker < raul.becker@iki.fi>
+ *
+ * Continued by Henri Hennebert <hlh@restart.be>
+ *
  */ 
 
 #define RTSX_NREG ((0XFDAE - 0XFDA0) + (0xFD69 - 0xFD32) + (0xFE34 - 0xFE20))
@@ -50,12 +53,13 @@ struct rtsx_pci_softc {
 	bus_space_handle_t rtsx_bhandle;	/* host register set handle */
 	//	struct resource	*sdmmc;		/* generic SD/MMC device */
 	bus_dma_tag_t	rtsx_dma_tag;		/* DMA tag from attachment driver */
-	void		*rtsx_dmamem_cmd;	/* DMA mem for command transfer */
-	bus_dmamap_t	rtsx_dmamap_cmd;	/* DMA map for command transfer */
-	void		*rtsx_dmamem_data;	/* DMA mem for data transfer */
-	bus_dmamap_t	rtsx_dmamap_data;	/* DMA map for data transfer */
-	void		*rtsx_dmamem_adma;	/* DMA mem for ADMA SG descriptors */
-	bus_dmamap_t	rtsx_dmamap_adma;	/* DMA map for ADMA SG descriptors */
+	void		*rtsx_cmd_dmamem;	/* DMA mem for command transfer */
+	bus_dmamap_t	rtsx_cmd_dmamap;	/* DMA map for command transfer */
+	bus_addr_t	*rtsx_cmd_buffer;	/* Command buffer */
+	void		*rtsx_data_dmamem;	/* DMA mem for data transfer */
+	bus_dmamap_t	rtsx_data_dmamap;	/* DMA map for data transfer */
+	void		*rtsx_adma_dmamem;	/* DMA mem for ADMA SG descriptors */
+	bus_dmamap_t	rtsx_adma_dmamap;	/* DMA map for ADMA SG descriptors */
 	bus_dma_segment_t adma_segs[1];		/* segments for ADMA SG buffer */
 	u_int32_t 	intr_status;		/* soft interrupt status */
 	u_int8_t	regs[RTSX_NREG];	/* host controller state */
