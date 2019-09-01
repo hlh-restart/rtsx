@@ -48,8 +48,9 @@ Warner
 
 What works:
 
- - probe (with fixed dev id x)
- - attach (and pcidev initialization... even detects if card is present or not when kldloading the module)
+ - probe of Vendor ID: 0x10ec - Device ID: 0x5287
+ - attach (and pcidev initialization...)
+ - detect card inserted / ejected
  - detach (atleast kldunload)
 
 TODO:
