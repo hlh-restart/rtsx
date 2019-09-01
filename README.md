@@ -49,9 +49,9 @@ Warner
 What works:
 
  - probe of Vendor ID: 0x10ec - Device ID: 0x5287
- - attach (and pcidev initialization...)
+ - attach (and dev initialization...)
  - detect card inserted / ejected
- - detach (atleast kldunload)
+ - detach (at least kldunload)
 
 TODO:
 
