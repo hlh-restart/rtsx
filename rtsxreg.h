@@ -521,7 +521,7 @@
 
 #define	RTSX_SG_NO_OP			0x00
 #define	RTSX_SG_TRANS_DATA		(0x02 << 4)
-#define	RTSX_SG_LINK_DESC	(	0x03 << 4)
+#define	RTSX_SG_LINK_DESC		(0x03 << 4)
 
 #define	RTSX_IC_VERSION_A		0x00
 #define	RTSX_IC_VERSION_B		0x01
