@@ -55,5 +55,4 @@ What works:
 
 TODO:
 
- - DMA allocation
- - DEVMETHOD to implement the mmc interface
+ - io operations
