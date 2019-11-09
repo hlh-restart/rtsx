@@ -10,8 +10,11 @@ and https://lists.freebsd.org/pipermail/freebsd-hackers/2018-April/052520.html
 Howto run:
 
 kldload mmc
+
 kldload mmcsd
+
 kldload rtsx
+
 
 What works:
 
