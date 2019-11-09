@@ -443,8 +443,9 @@
 #define	RTSX_DMATC3			0xFE2B
 
 #define	RTSX_DMACTL			0xFE2C
-#define	RTSX_DMA_DIR_TO_CARD		0x00
 #define	RTSX_DMA_EN			0x01
+#define RTSX_DMA_DIR			0x02
+#define	RTSX_DMA_DIR_TO_CARD		0x00
 #define	RTSX_DMA_DIR_FROM_CARD		0x02
 #define	RTSX_DMA_BUSY			0x04
 #define	RTSX_DMA_RST			0x80
