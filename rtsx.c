@@ -1,4 +1,3 @@
-
 /*
  *
  * Base on OpenBSD /sys/dev/pci/rtsx_pci.c & /dev/ic/rtsx.c
@@ -103,10 +102,6 @@ struct rtsx_softc {
 	bus_dmamap_t	rtsx_data_dmamap;	/* DMA map for data transfer */
 	void		*rtsx_data_dmamem;	/* DMA mem for data transfer */
 	bus_addr_t	rtsx_data_buffer;	/* device visible address of the DMA segment */
-
-	bus_dmamap_t	rtsx_adma_dmamap;	/* DMA map for ADMA SG descriptors */
-	void		*rtsx_adma_dmamem;	/* DMA mem for ADMA SG descriptors */
-	bus_dma_segment_t rtsx_adma_segs[1];	/* segments for ADMA SG buffer */
 
 	u_char		rtsx_bus_busy;		/* Bus busy status */ 
 	struct mmc_host rtsx_host;		/* Host parameters */
@@ -258,8 +253,7 @@ static int	rtsx_mmcbr_release_host(device_t bus, device_t child __unused);
 	} while (0)
 
 /* 
- * We use three DMA buffers: a command buffer, a data buffer, and a buffer for
- * ADMA transfer descriptors which describe scatter-gather (SG) I/O operations.
+ * We use two DMA buffers: a command buffer and a data buffer.
  *
  * The command buffer contains a command queue for the host controller,
  * which describes SD/MMC commands to run, and other parameters. The chip
@@ -271,16 +265,9 @@ static int	rtsx_mmcbr_release_host(device_t bus, device_t child __unused);
  * SD/MMC commands which do not transfer any data from/to the card only use
  * the command buffer.
  *
- * The smmmc stack provides DMA-safe buffers with data transfer commands.
- * In this case we write a list of descriptors to the ADMA descriptor buffer,
- * instructing the chip to transfer data directly from/to sdmmc DMA buffers.
- *
- * However, some sdmmc commands used during card initialization also carry
- * data, and these don't come with DMA-safe buffers. In this case, we transfer
- * data from/to the SD card via a DMA data bounce buffer.
- *
- * In both cases, data transfer is controlled via the RTSX_HDBAR register
- * and completion is signalled by the TRANS_OK interrupt.
+ * The data buffer is used for transfer longer than 512. Data transfer is
+ * controlled via the RTSX_HDBAR register and completion is signalled by
+ * the TRANS_OK interrupt.
  *
  * The chip is unable to perform DMA above 4GB.
  */
@@ -1206,10 +1193,12 @@ rtsx_push_cmd(struct rtsx_softc *sc, uint8_t cmd, uint16_t reg,
 		((uint32_t)(mask) << 8) |
 		((uint32_t)data);
 
+	/*---
 	if (bootverbose && sc->rtsx_cmd_index < 33)
 		device_printf(sc->rtsx_dev, "cmd_buffer[%02d] = 0x%08x\n",
 			      sc->rtsx_cmd_index - 1,
 			      cmd_buffer[sc->rtsx_cmd_index - 1]);
+	---*/
 
 }
 
@@ -1467,6 +1456,8 @@ static int
 rtsx_read_ppbuf(struct rtsx_softc *sc, struct mmc_command *cmd)
 {
 
+	uint32_t *cmd_buffer = (uint32_t *)(sc->rtsx_cmd_dmamem);
+	
 	uint16_t reg = RTSX_PPBUF_BASE2;
 	uint8_t *ptr = cmd->data->data;
 	int remain = cmd->data->len;
@@ -1482,9 +1473,19 @@ rtsx_read_ppbuf(struct rtsx_softc *sc, struct mmc_command *cmd)
 		if ((error = rtsx_send_cmd(sc, cmd)))
 		    return (error);
 		bus_dmamap_sync(sc->rtsx_cmd_dma_tag, sc->rtsx_cmd_dmamap, BUS_DMASYNC_POSTREAD);
+		bus_dmamap_sync(sc->rtsx_cmd_dma_tag, sc->rtsx_cmd_dmamap, BUS_DMASYNC_POSTWRITE);
 		memcpy(ptr, sc->rtsx_cmd_dmamem, RTSX_HOSTCMD_MAX);
 		ptr += RTSX_HOSTCMD_MAX;
 		remain -= RTSX_HOSTCMD_MAX;
+
+		if (bootverbose) {
+			int i;
+			for (i = 48; i < 52; i++) { 
+				device_printf(sc->rtsx_dev, "cmd_buffer[%d]: 0x%08x\n",
+					      i, cmd_buffer[i]);
+			}
+		}
+			
 	}
 	if (remain > 0) {
 		sc->rtsx_cmd_index = 0;
@@ -1600,13 +1601,21 @@ rtsx_xfer(struct rtsx_softc *sc, struct mmc_command *cmd)
 	/* Run the command queue and don't wait for completion. */
 	rtsx_send_cmd_nowait(sc, cmd);
 
+	bus_dmamap_sync(sc->rtsx_data_dma_tag, sc->rtsx_data_dmamap, BUS_DMASYNC_PREREAD);
+	bus_dmamap_sync(sc->rtsx_data_dma_tag, sc->rtsx_data_dmamap, BUS_DMASYNC_PREWRITE);
 	/* Tell the chip where the data buffer is and run the transfer. */
 	WRITE4(sc, RTSX_HDBAR, sc->rtsx_data_buffer);
 	WRITE4(sc, RTSX_HDBCTLR, RTSX_TRIG_DMA | (read ? RTSX_DMA_READ : 0) |
 	       (cmd->data->len & 0x00ffffff));
 
-	if ((error = rtsx_wait_intr(sc, RTSX_TRANS_OK_INT, hz * sc->rtsx_timeout)))
+	if ((error = rtsx_wait_intr(sc, RTSX_TRANS_OK_INT, hz * sc->rtsx_timeout))) {
 		cmd->error = MMC_ERR_TIMEOUT;
+		return (error);
+	}
+	bus_dmamap_sync(sc->rtsx_data_dma_tag, sc->rtsx_data_dmamap, BUS_DMASYNC_POSTREAD);
+	bus_dmamap_sync(sc->rtsx_data_dma_tag, sc->rtsx_data_dmamap, BUS_DMASYNC_POSTWRITE);
+	memcpy(cmd->data->data, sc->rtsx_data_dmamem, cmd->data->len);
+	
 	return (error);
 }
 
