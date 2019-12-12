@@ -15,6 +15,7 @@ kldload mmcsd
 
 kldload rtsx
 
+sysctl debug.bootverbose=1 for debugging
 
 What works:
 
@@ -23,6 +24,7 @@ What works:
  - detect card inserted / ejected
  - get card information
  - detach (at least kldunload)
+ - Patch to add detection of SD card insertion/removal (from Gary Jennejohn <gljennjohn@gmail.com>)
 
 TODO:
 
