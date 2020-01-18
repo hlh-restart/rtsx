@@ -1708,6 +1708,8 @@ rtsx_xfer(struct rtsx_softc *sc, struct mmc_command *cmd)
 	/* Run the command queue and don't wait for completion. */
 	rtsx_send_cmd_nowait(sc, cmd);
 
+	sc->rtsx_intr_status = 0;
+	
 	/* Sync command DMA buffer. */
 	bus_dmamap_sync(sc->rtsx_data_dma_tag, sc->rtsx_data_dmamap, BUS_DMASYNC_PREREAD);
 	bus_dmamap_sync(sc->rtsx_data_dma_tag, sc->rtsx_data_dmamap, BUS_DMASYNC_PREWRITE);
