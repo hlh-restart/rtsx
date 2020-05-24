@@ -498,7 +498,7 @@ rtsx_intr(void *arg)
 	WRITE4(sc, RTSX_BIPR, status);
 
 	if (((enabled & status) == 0) || status == 0xffffffff) {
-device_printf(sc->rtsx_dev, "FLAGS\n");
+		device_printf(sc->rtsx_dev, "FLAGS\n");
 		RTSX_UNLOCK(sc);
 		return;
 	}
@@ -837,7 +837,8 @@ rtsx_set_sd_clock(struct rtsx_softc *sc, uint32_t freq)
 		n = 80; /* minimum */
 		div = RTSX_CLK_DIV_8;
 		mcu = 7;
-		RTSX_SET(sc, RTSX_SD_CFG1, RTSX_CLK_DIVIDE_128);
+//		RTSX_SET(sc, RTSX_SD_CFG1, RTSX_CLK_DIVIDE_128);
+		RTSX_CLR(sc, RTSX_SD_CFG1, RTSX_CLK_DIVIDE_MASK);		
 		break;
 	case RTSX_SDCLK_25MHZ:
 		n = 100;

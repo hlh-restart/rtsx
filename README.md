@@ -25,6 +25,7 @@ What works:
  - get card information
  - detach (at least kldunload)
  - Patch to add detection of SD card insertion/removal (from Gary Jennejohn <gljennjohn@gmail.com>)
+ - Patch to read SCR and STATUS (CMD51 & CMD13) (from Jesper Schmitz Mouridsen)
 
 TODO:
 
