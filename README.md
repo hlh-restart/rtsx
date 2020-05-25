@@ -25,8 +25,10 @@ What works:
  - get card information
  - detach (at least kldunload)
  - Patch to add detection of SD card insertion/removal (from Gary Jennejohn <gljennjohn@gmail.com>)
- - Patch to read SCR and STATUS (CMD51 & CMD13) (from Jesper Schmitz Mouridsen)
+ - Patch to read SCR and STATUS (CMD51 & CMD13) (from Jesper Schmitz Mouridsen <jsm@FreeBSD.org>)
+ - Patch to allow successful read operations (from Jesper Schmitz Mouridsen <jsm@FreeBSD.org>)
 
 TODO:
 
- - io operations (for now return all 0 or timeout)
+ - Complete write operations
+
