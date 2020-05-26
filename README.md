@@ -32,3 +32,6 @@ TODO:
 
  - Complete write operations
 
+NOTE:
+
+ - See https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=204521
