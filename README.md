@@ -31,7 +31,7 @@ What works:
 
 TODO:
 
- - Testin... testing.... testing...
+ - Test... test.... test... and more tests
 
 NOTE:
 
