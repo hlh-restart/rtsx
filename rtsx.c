@@ -144,6 +144,7 @@ static int	rtsx_dma_alloc(struct rtsx_softc *sc);
 static void	rtsx_dmamap_cb(void *arg, bus_dma_segment_t *segs, int nsegs, int error);
 static void	rtsx_dma_free(struct rtsx_softc *sc);
 static void	rtsx_intr(void *arg);
+static int	rtsx_wait_intr(struct rtsx_softc *sc, int mask, int timeout);
 static int	rtsx_init(struct rtsx_softc *sc);
 static int	rtsx_stop(struct rtsx_softc *sc);
 static int	rtsx_read(struct rtsx_softc *, uint16_t, uint8_t *);
@@ -524,22 +525,6 @@ rtsx_intr(void *arg)
 		device_printf(sc->rtsx_dev, "No DMA transfert pending\n");
 
 	RTSX_UNLOCK(sc);
-
-
-	/*--- See taskqueue_enqueue_timeout()
-	
-	if (status & RTSX_SD_INT) {
-		if (status & RTSX_SD_EXIST) {
-			if (!ISSET(sc->rtsx_flags, RTSX_F_CARD_PRESENT))
-				rtsx_card_insert(sc);
-		} else {
-			rtsx_card_remove(sc);
-		}
-		return;
-	}
-
-	---*/
-
 }
 
 static int
@@ -1374,14 +1359,15 @@ rtsx_soft_reset(struct rtsx_softc *sc)
 	/* Stop command transfer. */
 	WRITE4(sc, RTSX_HCBCTLR, RTSX_STOP_CMD);
 
-	(void)rtsx_write(sc, RTSX_CARD_STOP, RTSX_SD_STOP|RTSX_SD_CLR_ERR,
-		    RTSX_SD_STOP|RTSX_SD_CLR_ERR);
-
 	/* Stop DMA transfer. */
 	WRITE4(sc, RTSX_HDBCTLR, RTSX_STOP_DMA);
 	(void)rtsx_write(sc, RTSX_DMACTL, RTSX_DMA_RST, RTSX_DMA_RST);
 
 	(void)rtsx_write(sc, RTSX_RBCTL, RTSX_RB_FLUSH, RTSX_RB_FLUSH);
+
+	/* Clear error. */
+	(void)rtsx_write(sc, RTSX_CARD_STOP, RTSX_SD_STOP|RTSX_SD_CLR_ERR,
+		    RTSX_SD_STOP|RTSX_SD_CLR_ERR);
 }
 
 static int
@@ -1696,7 +1682,6 @@ rtsx_xfer(struct rtsx_softc *sc, struct mmc_command *cmd)
 //		return (ENOBUFS);
 	
 //	RTSX_CLR(sc, RTSX_SD_CFG1, RTSX_CLK_DIVIDE_MASK);
-	
 
 	if (!read) {
 		error = rtsx_send_req_get_resp(sc, cmd);
@@ -1800,7 +1785,9 @@ rtsx_xfer(struct rtsx_softc *sc, struct mmc_command *cmd)
 
 	if (read)
 		memcpy(cmd->data->data, sc->rtsx_data_dmamem, cmd->data->len);
-	
+	else
+		rtsx_send_req_get_resp(sc, sc->rtsx_req->stop);
+
 	return (error);
 }
 
