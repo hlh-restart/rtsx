@@ -434,12 +434,12 @@ rtsx_handle_card_present(struct rtsx_softc *sc)
 	bool is_present;
 
 	was_present = sc->rtsx_mmc_dev != NULL;
-	is_present = (rtsx_is_card_present(sc) != 0);
+	is_present = rtsx_is_card_present(sc);
 
 	if (!was_present && is_present) {
 		/* small delay for the controller */
 		taskqueue_enqueue_timeout(taskqueue_swi_giant,
-		  &sc->card_delayed_task, -(hz / 2));
+					  &sc->card_delayed_task, -(hz / 2));
 	} else if (was_present && !is_present) {
 		taskqueue_enqueue(taskqueue_swi_giant, &sc->card_task);
 	}
@@ -453,7 +453,7 @@ rtsx_card_task(void *arg, int pending __unused)
 
 	RTSX_LOCK(sc);
 
-	if (rtsx_is_card_present(sc) != 0) {
+	if (rtsx_is_card_present(sc)) {
 		sc->rtsx_flags |= RTSX_F_CARD_PRESENT;
 		/* Card is present, attach if necessary */
 		if (sc->rtsx_mmc_dev == NULL) {
@@ -491,7 +491,7 @@ rtsx_intr(void *arg)
 	uint32_t enabled, status;
 
 	RTSX_LOCK(sc);
-	enabled = READ4(sc, RTSX_BIER);	/* read Bus Interrupt Enable ister */
+	enabled = READ4(sc, RTSX_BIER);	/* read Bus Interrupt Enable Register */
 	status = READ4(sc, RTSX_BIPR);	/* read Bus Interrupt pending Register */
 
 	if (bootverbose)
@@ -501,7 +501,7 @@ rtsx_intr(void *arg)
 	WRITE4(sc, RTSX_BIPR, status);
 
 	if (((enabled & status) == 0) || status == 0xffffffff) {
-		device_printf(sc->rtsx_dev, "FLAGS\n");
+		device_printf(sc->rtsx_dev, "Spurious interrupt\n");
 		RTSX_UNLOCK(sc);
 		return;
 	}
@@ -509,11 +509,11 @@ rtsx_intr(void *arg)
 	/* start task to handle SD card status change */
 	/* from dwmmc.c */
 	if (status & RTSX_SD_INT) {
-		device_printf(sc->rtsx_dev, "A\n");
+		device_printf(sc->rtsx_dev, "Card inserted/removed\n");
 		rtsx_handle_card_present(sc);
 	}
 	if (sc->rtsx_req == NULL) {
-		device_printf(sc->rtsx_dev, "B\n");
+		device_printf(sc->rtsx_dev, "No request running\n");
 		RTSX_UNLOCK(sc);
 		return;
 	}
@@ -521,7 +521,7 @@ rtsx_intr(void *arg)
 		sc->rtsx_intr_status |= status;
 		wakeup(&sc->rtsx_intr_status);
 	} else
-		device_printf(sc->rtsx_dev, "NODMA\n");
+		device_printf(sc->rtsx_dev, "No DMA transfert pending\n");
 
 	RTSX_UNLOCK(sc);
 
@@ -1356,7 +1356,20 @@ rtsx_req_done(struct rtsx_softc *sc)
 static void
 rtsx_soft_reset(struct rtsx_softc *sc)
 {
+	uint32_t status;
+	
 	device_printf(sc->rtsx_dev, "Soft reset\n");
+
+	/* Enable interrupt write-clear (default is read-clear). */
+	(void)rtsx_write(sc, RTSX_NFTS_TX_CTRL, RTSX_INT_READ_CLR, 0);
+
+	/* Clear any pending interrupts. */
+	status = READ4(sc, RTSX_BIPR);
+	WRITE4(sc, RTSX_BIPR, status);
+
+	/* Enable interrupts. */
+	WRITE4(sc, RTSX_BIER,
+	       RTSX_TRANS_OK_INT_EN | RTSX_TRANS_FAIL_INT_EN | RTSX_SD_INT_EN);
 
 	/* Stop command transfer. */
 	WRITE4(sc, RTSX_HCBCTLR, RTSX_STOP_CMD);
@@ -1370,6 +1383,7 @@ rtsx_soft_reset(struct rtsx_softc *sc)
 
 	(void)rtsx_write(sc, RTSX_RBCTL, RTSX_RB_FLUSH, RTSX_RB_FLUSH);
 }
+
 static int
 rtsx_send_req_get_resp(struct rtsx_softc *sc, struct mmc_command *cmd) {
 	uint8_t rsp_type;
@@ -1681,28 +1695,35 @@ rtsx_xfer(struct rtsx_softc *sc, struct mmc_command *cmd)
 //	if (!read)
 //		return (ENOBUFS);
 	
-	RTSX_CLR(sc, RTSX_SD_CFG1, RTSX_CLK_DIVIDE_MASK);
+//	RTSX_CLR(sc, RTSX_SD_CFG1, RTSX_CLK_DIVIDE_MASK);
+	
+
+	if (!read) {
+		error = rtsx_send_req_get_resp(sc, cmd);
+		if (error)
+			return (error);
+	}
 	
 	/* Configure DMA transfer mode parameters. */
-	if (cmd->opcode == MMC_READ_MULTIPLE_BLOCK || cmd->opcode == MMC_WRITE_MULTIPLE_BLOCK)
+	if (cmd->opcode == MMC_READ_MULTIPLE_BLOCK)
 		cfg2 = RTSX_SD_CHECK_CRC16 | RTSX_SD_NO_WAIT_BUSY_END | RTSX_SD_RSP_LEN_6;
 	else
 		cfg2 = RTSX_SD_CHECK_CRC16 | RTSX_SD_NO_WAIT_BUSY_END | RTSX_SD_RSP_LEN_0;
 	if (read) {
 		dma_dir = RTSX_DMA_DIR_FROM_CARD;
 		/*
-		 * Use transfer mode AUTO_READ2, which assumes we've already
+		 * Use transfer mode AUTO_READ1, which assumes we've already
 		 * sent the read command and gotten the response, and will
 		 * send CMD 12 manually after reading multiple blocks.
 		 */
-     		tmode = RTSX_TM_AUTO_READ2;
+     		tmode = RTSX_TM_AUTO_READ1;
 		cfg2 |= RTSX_SD_CALCULATE_CRC7 | RTSX_SD_CHECK_CRC7;
 
 		rtsx_init_cmd(sc, cmd);
 	} else {
 		dma_dir = RTSX_DMA_DIR_TO_CARD;
 		/*
-		 * Use transfer mode AUTO_WRITE3, which assumes we've already
+		 * Use transfer mode AUTO_WRITE3, wich assumes we've already
 		 * sent the write command and gotten the response, and will
 		 * send CMD 12 manually after writing multiple blocks.
 		 */
