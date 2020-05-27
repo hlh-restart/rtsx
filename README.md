@@ -27,10 +27,11 @@ What works:
  - Patch to add detection of SD card insertion/removal (from Gary Jennejohn <gljennjohn@gmail.com>)
  - Patch to read SCR and STATUS (CMD51 & CMD13) (from Jesper Schmitz Mouridsen <jsm@FreeBSD.org>)
  - Patch to allow successful read operations (from Jesper Schmitz Mouridsen <jsm@FreeBSD.org>)
+ - write operation completed with Jesper Schmitz Mouridsen <jsm@FreeBSD.org>.
 
 TODO:
 
- - Complete write operations
+ - Testin... testing.... testing...
 
 NOTE:
 
