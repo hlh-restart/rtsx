@@ -8,6 +8,9 @@
  * Copyright (c) 2020 Jesper Schmitz Mouridsen <jsm@FreeBSD.org>
  * All rights reserved.
  *
+ * Patch from:
+ * - Lutz Bichler <Lutz.Bichler@gmail.com>
+ *
  * Base on OpenBSD /sys/dev/pci/rtsx_pci.c & /dev/ic/rtsx.c
  *      on Linux   /drivers/mmc/host/rtsx_pci_sdmmc.c,
  *                 /include/linux/rtsx_pci.h &
@@ -530,10 +533,10 @@ rtsx_card_task(void *arg, int pending __unused)
 			if (bootverbose)
 				device_printf(sc->rtsx_dev, "Card removed\n");
 
-			sc->rtsx_mmc_dev = NULL;
-			RTSX_UNLOCK(sc);
 			if (device_delete_child(sc->rtsx_dev, sc->rtsx_mmc_dev))
 				device_printf(sc->rtsx_dev, "Detaching MMC bus failed\n");
+			sc->rtsx_mmc_dev = NULL;
+			RTSX_UNLOCK(sc);
 		} else
 			RTSX_UNLOCK(sc);
 	}

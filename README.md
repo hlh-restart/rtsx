@@ -28,6 +28,7 @@ What works:
  - Patch to read SCR and STATUS (CMD51 & CMD13) (from Jesper Schmitz Mouridsen <jsm@FreeBSD.org>)
  - Patch to allow successful read operations (from Jesper Schmitz Mouridsen <jsm@FreeBSD.org>)
  - write operation completed with Jesper Schmitz Mouridsen <jsm@FreeBSD.org>.
+ - patch from RTS525A from Lutz Bichler <Lutz.Bichler@gmail.com>
 
 TODO:
 
