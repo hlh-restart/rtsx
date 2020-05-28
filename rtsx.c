@@ -1,4 +1,12 @@
-/*
+/*-
+ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
+ *
+ * Copyright (c) 2006 Uwe Stuehler <uwe@openbsd.org>
+ * Copyright (c) 2012 Stefan Sperling <stsp@openbsd.org>
+ * Copyright (c) 2020 Henri Hennebert <hlh@restart.be>
+ * Copyright (c) 2020 Gary Jennejohn <gljennjohn@gmail.com>
+ * Copyright (c) 2020 Jesper Schmitz Mouridsen <jsm@FreeBSD.org>
+ * All rights reserved.
  *
  * Base on OpenBSD /sys/dev/pci/rtsx_pci.c & /dev/ic/rtsx.c
  *      on Linux   /drivers/mmc/host/rtsx_pci_sdmmc.c,
@@ -6,64 +14,43 @@
  *                 /drivers/misc/cardreader/rtsx_pcr.c
  *      on NetBSD  /sys/dev/ic/rtsx.c
  *
- * Copyright (c) 2006 Uwe Stuehler <uwe@openbsd.org>
- * Copyright (c) 2012 Stefan Sperling <stsp@openbsd.org>
- *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
  * copyright notice and this permission notice appear in all copies.
  *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
- * Port to freeBSD
- *
- * Started by Raul Becker < raul.becker@iki.fi>
- *
- * Continued by Henri Hennebert <hlh@restart.be>
- *
- * Update from Gary Jennejohn <gljennjohn@gmail.com>
- * Update from Jesper Schmitz Mouridsen <jsm@FreeBSD.org>
- *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
  */ 
 
-/*
- * Simple KLD to play with the PCI functions.
- *
- * Murray Stokely
- */
+#include <sys/cdefs.h>
+__FBSDID("$FreeBSD$");
 
-#include <sys/param.h>		/* defines used in kernel.h */
+#include <sys/param.h>
 #include <sys/module.h>
-#include <sys/systm.h>
 #include <sys/errno.h>
-#include <sys/kernel.h>		/* types used in module initialization */
-#include <sys/uio.h>		/* uio struct */
-#include <sys/malloc.h>
-#include <sys/bus.h>		/* structs, prototypes for pci bus stuff and DEVMETHOD macros! */
+#include <sys/kernel.h>
+#include <sys/bus.h>
 #include <sys/endian.h>
-
 #include <machine/bus.h>
 #include <sys/mutex.h>
 #include <sys/rman.h>
 #include <sys/queue.h>
 #include <sys/taskqueue.h>
-#include <machine/resource.h>
 #include <sys/sysctl.h>
-
-#include <dev/pci/pcivar.h>	/* For pci_get macros! */
+#include <dev/pci/pcivar.h>
 #include <dev/pci/pcireg.h>
-
 #include <dev/mmc/bridge.h>
 #include <dev/mmc/mmcreg.h>
 #include <dev/mmc/mmcbrvar.h>
-
-#include "mmcbr_if.h"
 
 #include "rtsxreg.h"
 
@@ -88,10 +75,8 @@ struct rtsx_softc {
 	device_t	rtsx_dev;		/* device */
 	int		rtsx_flags;		/* device flags */
 	device_t	rtsx_mmc_dev;		/* device of mmc bus */
-	/* for card insert/remove - from dwmmc.c */
-	struct task		card_task;	/* Card presence check task */
-	struct timeout_task	card_delayed_task;/* Card insert delayed task */
-
+	struct task	rtsx_card_task;		/* card presence check task */
+	struct timeout_task rtsx_delayed_task;	/* card insert delayed task */
 	int		rtsx_irq_res_id;	/* bus IRQ resource id */
 	struct resource *rtsx_irq_res;		/* bus IRQ resource */
 	void		*rtsx_irq_cookie;	/* bus IRQ resource cookie */
@@ -145,8 +130,14 @@ static void	rtsx_dmamap_cb(void *arg, bus_dma_segment_t *segs, int nsegs, int er
 static void	rtsx_dma_free(struct rtsx_softc *sc);
 static void	rtsx_intr(void *arg);
 static int	rtsx_wait_intr(struct rtsx_softc *sc, int mask, int timeout);
+static void	rtsx_handle_card_present(struct rtsx_softc *sc);
+static void	rtsx_card_task(void *arg, int pending __unused);
+static int	rtsx_is_card_present(struct rtsx_softc *sc);
+#if 0
+static int	rtsx_led_enable(struct rtsx_softc *sc);
+static int	rtsx_led_disable(struct rtsx_softc *sc);
+#endif
 static int	rtsx_init(struct rtsx_softc *sc);
-static int	rtsx_stop(struct rtsx_softc *sc);
 static int	rtsx_read(struct rtsx_softc *, uint16_t, uint8_t *);
 static int	rtsx_read_cfg(struct rtsx_softc *sc, uint8_t func, uint16_t addr, uint32_t *val);
 static int	rtsx_write(struct rtsx_softc *sc, uint16_t addr, uint8_t mask, uint8_t val);
@@ -157,15 +148,6 @@ static int	rtsx_switch_sd_clock(struct rtsx_softc *sc, uint8_t n, int div, int m
 static int	rtsx_bus_power_off(struct rtsx_softc *sc);
 static int	rtsx_bus_power_up(struct rtsx_softc *sc);
 static int	rtsx_bus_power_on(struct rtsx_softc *sc);
-static int	rtsx_is_card_present(struct rtsx_softc *sc);
-#if 0 /* done in task */
-static void	rtsx_start(struct rtsx_softc *sc);
-static void	rtsx_card_insert(struct rtsx_softc *sc);
-static void	rtsx_card_remove(struct rtsx_softc *sc);
-#endif
-static int	rtsx_led_enable(struct rtsx_softc *sc);
-static int	rtsx_led_disable(struct rtsx_softc *sc);
-
 static uint8_t	rtsx_response_type(uint16_t mmc_rsp);
 static void	rtsx_init_cmd(struct rtsx_softc *sc, struct mmc_command *cmd);
 static void	rtsx_push_cmd(struct rtsx_softc *sc, uint8_t cmd, uint16_t reg,
@@ -198,8 +180,6 @@ static int	rtsx_mmcbr_request(device_t bus, device_t child __unused, struct mmc_
 static int	rtsx_mmcbr_get_ro(device_t bus, device_t child __unused);
 static int	rtsx_mmcbr_acquire_host(device_t bus, device_t child __unused);
 static int	rtsx_mmcbr_release_host(device_t bus, device_t child __unused);
-static void rtsx_card_task(void *arg, int pending __unused);
-static void rtsx_handle_card_present(struct rtsx_softc *sc);
 
 #define RTSX_LOCK_INIT(_sc)	mtx_init(&(_sc)->rtsx_mtx,	\
 					 device_get_nameunit(sc->rtsx_dev), "rtsx", MTX_DEF)
@@ -369,7 +349,7 @@ rtsx_dma_alloc(struct rtsx_softc *sc) {
         }
 	return (error);
 	
-destroy_data_dmamem_alloc:
+ destroy_data_dmamem_alloc:
 	bus_dmamem_free(sc->rtsx_data_dma_tag, sc->rtsx_data_dmamem, sc->rtsx_data_dmamap);
  destroy_data_dma_tag:
 	bus_dma_tag_destroy(sc->rtsx_data_dma_tag);
@@ -426,65 +406,6 @@ rtsx_dma_free(struct rtsx_softc *sc) {
 	}
 }
 	
-/* from dwmmc.c */
-/* called from the IRQ handler */
-static void
-rtsx_handle_card_present(struct rtsx_softc *sc)
-{
-	bool was_present;
-	bool is_present;
-
-	was_present = sc->rtsx_mmc_dev != NULL;
-	is_present = rtsx_is_card_present(sc);
-
-	if (!was_present && is_present) {
-		/* small delay for the controller */
-		taskqueue_enqueue_timeout(taskqueue_swi_giant,
-					  &sc->card_delayed_task, -(hz / 2));
-	} else if (was_present && !is_present) {
-		taskqueue_enqueue(taskqueue_swi_giant, &sc->card_task);
-	}
-}
-
-/* this is called at startup */
-static void
-rtsx_card_task(void *arg, int pending __unused)
-{
-	struct rtsx_softc *sc = arg;
-
-	RTSX_LOCK(sc);
-
-	if (rtsx_is_card_present(sc)) {
-		sc->rtsx_flags |= RTSX_F_CARD_PRESENT;
-		/* Card is present, attach if necessary */
-		if (sc->rtsx_mmc_dev == NULL) {
-			if (bootverbose)
-				device_printf(sc->rtsx_dev, "Card inserted\n");
-
-			sc->rtsx_mmc_dev = device_add_child(sc->rtsx_dev, "mmc", -1);
-			RTSX_UNLOCK(sc);
-			if (sc->rtsx_mmc_dev != NULL) {
-				device_set_ivars(sc->rtsx_mmc_dev, sc);
-				(void)device_probe_and_attach(sc->rtsx_mmc_dev);
-			}
-		} else
-			RTSX_UNLOCK(sc);
-		
-	} else {
-		sc->rtsx_flags &= ~RTSX_F_CARD_PRESENT;
-		/* Card isn't present, detach if necessary */
-		if (sc->rtsx_mmc_dev != NULL) {
-			if (bootverbose)
-				device_printf(sc->rtsx_dev, "Card removed\n");
-
-			RTSX_UNLOCK(sc);
-			device_delete_child(sc->rtsx_dev, sc->rtsx_mmc_dev);
-			sc->rtsx_mmc_dev = NULL;
-		} else
-			RTSX_UNLOCK(sc);
-	}
-}
-
 static void
 rtsx_intr(void *arg)
 {
@@ -521,8 +442,7 @@ rtsx_intr(void *arg)
 	if (status & (RTSX_TRANS_OK_INT | RTSX_TRANS_FAIL_INT)) {
 		sc->rtsx_intr_status |= status;
 		wakeup(&sc->rtsx_intr_status);
-	} else
-		device_printf(sc->rtsx_dev, "No DMA transfert pending\n");
+	}
 
 	RTSX_UNLOCK(sc);
 }
@@ -555,6 +475,77 @@ rtsx_wait_intr(struct rtsx_softc *sc, int mask, int timeout)
 		error = MMC_ERR_FAILED;
 
 	return (error);
+}
+
+/* from dwmmc.c */
+/* called from the IRQ handler */
+static void
+rtsx_handle_card_present(struct rtsx_softc *sc)
+{
+	bool was_present;
+	bool is_present;
+
+	was_present = sc->rtsx_mmc_dev != NULL;
+	is_present = rtsx_is_card_present(sc);
+
+	if (!was_present && is_present) {
+		/* small delay for the controller */
+		taskqueue_enqueue_timeout(taskqueue_swi_giant,
+					  &sc->rtsx_delayed_task, -(hz / 2));
+	} else if (was_present && !is_present) {
+		taskqueue_enqueue(taskqueue_swi_giant, &sc->rtsx_card_task);
+	}
+}
+
+/* this is called at startup */
+static void
+rtsx_card_task(void *arg, int pending __unused)
+{
+	struct rtsx_softc *sc = arg;
+
+	RTSX_LOCK(sc);
+
+	if (rtsx_is_card_present(sc)) {
+		sc->rtsx_flags |= RTSX_F_CARD_PRESENT;
+		/* Card is present, attach if necessary */
+		if (sc->rtsx_mmc_dev == NULL) {
+			if (bootverbose)
+				device_printf(sc->rtsx_dev, "Card inserted\n");
+
+			sc->rtsx_mmc_dev = device_add_child(sc->rtsx_dev, "mmc", -1);
+			RTSX_UNLOCK(sc);
+			if (sc->rtsx_mmc_dev == NULL) {
+				device_printf(sc->rtsx_dev, "Adding MMC bus failed\n");
+			} else {
+				device_set_ivars(sc->rtsx_mmc_dev, sc);
+				(void)device_probe_and_attach(sc->rtsx_mmc_dev);
+			}
+		} else
+			RTSX_UNLOCK(sc);
+		
+	} else {
+		sc->rtsx_flags &= ~RTSX_F_CARD_PRESENT;
+		/* Card isn't present, detach if necessary */
+		if (sc->rtsx_mmc_dev != NULL) {
+			if (bootverbose)
+				device_printf(sc->rtsx_dev, "Card removed\n");
+
+			sc->rtsx_mmc_dev = NULL;
+			RTSX_UNLOCK(sc);
+			if (device_delete_child(sc->rtsx_dev, sc->rtsx_mmc_dev))
+				device_printf(sc->rtsx_dev, "Detaching MMC bus failed\n");
+		} else
+			RTSX_UNLOCK(sc);
+	}
+}
+
+static int
+rtsx_is_card_present(struct rtsx_softc *sc)
+{
+	uint32_t status;
+
+	status = READ4(sc, RTSX_BIPR);
+	return (status & RTSX_SD_EXIST);
 }
 
 static int
@@ -667,29 +658,6 @@ rtsx_init(struct rtsx_softc *sc)
 	}
 
 	return (0);
-}
-
-#if 0 /* done in task */
-static void
-rtsx_start(struct rtsx_softc *sc)
-{
-	if (rtsx_is_card_present(sc))
-		rtsx_card_insert(sc);
-	else
-		rtsx_card_remove(sc);
-}
-#endif
-
-static int
-rtsx_stop(struct rtsx_softc *sc)
-{
-	int ret = 0;
-
-	/* automatically deletes any children */
-	ret = device_delete_children(sc->rtsx_dev);
-	sc->rtsx_mmc_dev = NULL;
-
-	return (ret);
 }
 
 static int
@@ -1116,66 +1084,7 @@ rtsx_bus_power_on(struct rtsx_softc *sc)
 	return (0);
 }
 
-static int
-rtsx_is_card_present(struct rtsx_softc *sc)
-{
-	uint32_t status;
-
-	status = READ4(sc, RTSX_BIPR);
-	return (status & RTSX_SD_EXIST);
-}
-
-#if 0 /* done in the task */
-static void
-rtsx_card_insert(struct rtsx_softc *sc)
-{
-	device_t mmc_dev;
-	int error;
-
-	device_printf(sc->rtsx_dev, "Card inserted\n");
-
-	RTSX_LOCK(sc);
-	sc->rtsx_flags |= RTSX_F_CARD_PRESENT;
-	/* Schedule card discovery task. */
-	if (sc->rtsx_mmc_dev == NULL) {
-		/* attach mmc bus */
-		sc->rtsx_mmc_dev = device_add_child(sc->rtsx_dev, "mmc", -1);
-		if ((mmc_dev = sc->rtsx_mmc_dev) == NULL)
-			device_printf(sc->rtsx_dev, "Adding MMC bus failed\n");
-		RTSX_UNLOCK(sc);
-		if (mmc_dev != NULL)
-			if ((error = device_probe_and_attach(sc->rtsx_mmc_dev)))
-				device_printf(sc->rtsx_dev, "Attaching MMC bus failed [%d]\n", error);
-	}
-	else {
-		RTSX_UNLOCK(sc);
-	}
-	rtsx_led_enable(sc);
-}
-
-static void
-rtsx_card_remove(struct rtsx_softc *sc)
-{
-	device_t mmc_dev;
-	
-	device_printf(sc->rtsx_dev, "Card removed\n");
-
-	RTSX_LOCK(sc);
-	sc->rtsx_flags &= ~RTSX_F_CARD_PRESENT;
-	/* Schedule card discovery task. */
-	if ((mmc_dev = sc->rtsx_mmc_dev) != NULL) {
-		/* detach mmc bus */
-		sc->rtsx_mmc_dev = NULL;
-		RTSX_UNLOCK(sc);
-		if (device_delete_child(sc->rtsx_dev, mmc_dev))
-			device_printf(sc->rtsx_dev, "Detaching MMC bus failed\n");
-	} else {
-		RTSX_UNLOCK(sc);
-	}
-	rtsx_led_disable(sc);
-}
-#endif
-
+#if 0
 static int
 rtsx_led_enable(struct rtsx_softc *sc)
 {
@@ -1211,6 +1120,7 @@ rtsx_led_disable(struct rtsx_softc *sc)
 
 	return (0);
 }
+#endif
 
 static uint8_t
 rtsx_response_type(uint16_t mmc_rsp)
@@ -2234,7 +2144,10 @@ rtsx_attach(device_t dev)
 	}
 
 	/* Allocate memory resource */
-	sc->rtsx_res_id = PCIR_BAR(0);
+	if (sc->rtsx_flags & RTSX_F_525A)
+		sc->rtsx_res_id = PCIR_BAR(1);
+	else
+		sc->rtsx_res_id = PCIR_BAR(0);
 	sc->rtsx_res = bus_alloc_resource_any(dev, SYS_RES_MEMORY, &sc->rtsx_res_id, RF_ACTIVE);
 	if (sc->rtsx_res == NULL) {
 		device_printf(dev, "Can't allocate memory resource for %d\n", sc->rtsx_res_id);
@@ -2279,22 +2192,18 @@ rtsx_attach(device_t dev)
 	if (error) {
 		goto destroy_rtsx_irq;
 	}
-#if 0 /* done in task */
-	/* Start device */
-	rtsx_start(sc);
-#else
+
 	/* from dwmmc.c */
-	TASK_INIT(&sc->card_task, 0, rtsx_card_task, sc);
+	TASK_INIT(&sc->rtsx_card_task, 0, rtsx_card_task, sc);
 	/* really giant? */
-	TIMEOUT_TASK_INIT(taskqueue_swi_giant, &sc->card_delayed_task, 0,
-		rtsx_card_task, sc);
+	TIMEOUT_TASK_INIT(taskqueue_swi_giant, &sc->rtsx_delayed_task, 0,
+			  rtsx_card_task, sc);
 
 	/* 
 	 * Schedule a card detection as we won't get an interrupt
 	 * if the card is inserted when we attach
 	 */
 	rtsx_card_task(sc, 0);
-#endif
 
 	if (bootverbose)
 		device_printf(dev, "Device attached\n");
@@ -2319,19 +2228,20 @@ static int
 rtsx_detach(device_t dev)
 {
 	struct rtsx_softc *sc = device_get_softc(dev);
-	int err;
+	int error;
 
 	if (bootverbose)
 		device_printf(dev, "Detach - Vendor ID: 0x%x - Device ID: 0x%x\n",
 			      pci_get_vendor(dev), pci_get_device(dev));
 	
 	/* Stop device */
-	err = rtsx_stop(sc);
-	if (err != 0)
-		return err;
+	error = device_delete_children(sc->rtsx_dev);
+	sc->rtsx_mmc_dev = NULL;
+	if (error != 0)
+		return (error);
 
-	taskqueue_drain(taskqueue_swi_giant, &sc->card_task);
-	taskqueue_drain_timeout(taskqueue_swi_giant, &sc->card_delayed_task);
+	taskqueue_drain(taskqueue_swi_giant, &sc->rtsx_card_task);
+	taskqueue_drain_timeout(taskqueue_swi_giant, &sc->rtsx_delayed_task);
 
 	/* Teardown the state in our softc created in our attach routine. */
 	rtsx_dma_free(sc);

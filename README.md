@@ -31,6 +31,7 @@ What works:
 
 TODO:
 
+ - Implement sleep and resume
  - Test... test.... test... and more tests
 
 NOTE:
