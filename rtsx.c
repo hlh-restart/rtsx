@@ -924,7 +924,7 @@ rtsx_bus_power_up(struct rtsx_softc *sc)
 	int error;
 
 	if (bootverbose)
-		device_printf(sc->rtsx_dev, "rtsx_bus_power_on()\n");
+		device_printf(sc->rtsx_dev, "rtsx_bus_power_up()\n");
 	
 	if (sc->rtsx_flags & RTSX_F_525A) {
 		error = rtsx_write(sc, RTSX_LDO_VCC_CFG1, RTSX_LDO_VCC_TUNE_MASK,
@@ -1003,7 +1003,7 @@ rtsx_bus_power_on(struct rtsx_softc *sc)
 	int error;
 
 	if (bootverbose)
-		device_printf(sc->rtsx_dev, "rtsx_bus_power_up()\n");
+		device_printf(sc->rtsx_dev, "rtsx_bus_power_on()\n");
 	
 	if (sc->rtsx_flags & RTSX_F_525A) {
 		error = rtsx_write(sc, RTSX_LDO_VCC_CFG1, RTSX_LDO_VCC_TUNE_MASK,
@@ -1706,7 +1706,7 @@ rtsx_xfer(struct rtsx_softc *sc, struct mmc_command *cmd)
 	if (read)
 		memcpy(cmd->data->data, sc->rtsx_data_dmamem, cmd->data->len);
 	else
-		/* Send CMD12 after AUTO_WRITE3 */
+		/* Send CMD12 after AUTO_WRITE3 (see mmcsd_rw() in mmcsd.c) */
 		rtsx_send_req_get_resp(sc, sc->rtsx_req->stop);
 
 	return (error);
@@ -1876,11 +1876,11 @@ rtsx_mmcbr_update_ios(device_t bus, device_t child)
 		}
 		break;
 	case power_up:
-		if (sc->rtsx_power_mode != power_up) {
-			rtsx_bus_power_up(sc);
-			sc->rtsx_power_mode = power_up;
-		}
-		break;
+//		if (sc->rtsx_power_mode != power_up) {
+//			rtsx_bus_power_up(sc);
+//			sc->rtsx_power_mode = power_up;
+//		}
+//		break;
 	case power_on:
 		if (sc->rtsx_power_mode != power_on) {
 			rtsx_bus_power_on(sc);

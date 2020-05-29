@@ -36,7 +36,7 @@ WHAT WORKS:
  - Patch to read SCR and STATUS (CMD51 & CMD13) (from Jesper Schmitz Mouridsen <jsm@FreeBSD.org>)
  - Patch to allow successful read operations (from Jesper Schmitz Mouridsen <jsm@FreeBSD.org>)
  - write operation completed with Jesper Schmitz Mouridsen <jsm@FreeBSD.org>.
- - patch from RTS525A from Lutz Bichler <Lutz.Bichler@gmail.com>
+ - patch for RTS525A from Lutz Bichler <Lutz.Bichler@gmail.com>
 
 TODO:
 
@@ -49,7 +49,7 @@ TESTED ON:
  - RTS5227  under FreeBSD-11.4-STABLE, FreeBSD 12.1-RELEASE
  - RTS522A  under FreeBSD-13.0-CURRENT
 
-NOTE:
+NOTES:
  
  - RTS522A on a lenovo P50s show a card detection problem.
 
