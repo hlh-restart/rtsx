@@ -1,0 +1,80 @@
+.\"
+.\" Copyright (c) 2020 Henri Hennebert <hlh@restart.be>
+.\" All rights reserved.
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions
+.\" are met:
+.\" 1. Redistributions of source code must retain the above copyright
+.\"    notice, this list of conditions and the following disclaimer.
+.\" 2. The name of the author may not be used to endorse or promote products
+.\"    derived from this software without specific prior written permission.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+.\" ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+.\" IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+.\" ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+.\" FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+.\" DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+.\" OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+.\" HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+.\" LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+.\" OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+.\" SUCH DAMAGE.
+.\"
+.\" $FreeBSD$
+.\"
+.Dd May 27, 2020
+.Dt RTSX 4
+.Os
+.Sh NAME
+.Nm rtsx
+.Nd Realtek SD card reader
+.Sh SYNOPSIS
+To load the driver as a module at boot time, place the
+following lines in
+.Xr loader.conf 5 :
+.Bd -literal -offset indent
+mmc_load="YES"
+mmcsd_load="YES"
+rtsx_load="YES"
+.Ed
+.Pp
+Or if the kernel configuration file contains:
+.Bd -literal -offset indent
+.Cd "device mmc"
+.Cd "device mmcsd"
+.Ed
+.Pp
+place in
+.Xr loader.conf 5 :
+.Bd -literal -offset indent
+rtsx_load="YES"
+.Ed
+.Sh DESCRIPTION
+The
+.Nm
+driver provides support for the Realtek RTS5227, RTS522A, RTS525A and RTL8411B
+SD card readers.
+.Pp
+It should also work for the Realtek RTS5209, RTS5229, RTS5249, RTL8402, and RTL8411
+SD card readers.
+.Sh HISTORY
+The
+.Nm
+driver was ported from OpenBSD with modifications found in Linux and OpenBSD.
+.Sh SEE ALSO
+.Xr mmc 4 ,
+.Xr mmcsd 4
+.Rs
+.%T "SD Specifications, Part 2, SD Host Controller, Simplified Specification"
+.%T "SanDisk Secure Digital Card"
+.Re
+.Sh AUTHORS
+.An Henri Hennebert Aq Mt hlh@restart.be
+.An Gary Jennejohn Aq Mt gljennjohn@gmail.com
+.An Jesper Schmitz Mouridsen Aq Mt jsm@FreeBSD.org
+.Sh CONTRIBUTORS
+.An Lutz Bichler Aq Mt Lutz.Bichler@gmail.com
+.Sh BUGS
+Must exists.

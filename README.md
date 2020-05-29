@@ -7,7 +7,15 @@ and https://lists.freebsd.org/pipermail/freebsd-hackers/2018-April/052520.html
 
 --------------------------------------------------------------------------
 
-Howto run:
+HOWTO COMPILE AND INSTALL:
+
+Place source in /usr/src/sys/dev/rtsx
+
+make
+
+make install
+
+HOWTO RUN:
 
 kldload mmc
 
@@ -17,7 +25,7 @@ kldload rtsx
 
 sysctl debug.bootverbose=1 for debugging
 
-What works:
+WHAT WORKS:
 
  - probe of Vendor ID: 0x10ec - Device ID: 0x5287
  - attach (and dev initialization...)
@@ -35,6 +43,14 @@ TODO:
  - Implement sleep and resume
  - Test... test.... test... and more tests
 
+TESTED ON:
+
+ - RTL8411B under FreeBSD-12.1-STABLE
+ - RTS5227  under FreeBSD-11.4-STABLE, FreeBSD 12.1-RELEASE
+ - RTS522A  under FreeBSD-13.0-CURRENT
+
 NOTE:
+ 
+ - RTS522A on a lenovo P50s show a card detection problem.
 
  - See https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=204521

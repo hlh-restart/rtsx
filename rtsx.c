@@ -123,8 +123,9 @@ static const struct rtsx_device {
 	{ 0x10ec,	0x522a,	RTSX_F_DEFAULT, "Realtek RTS522A PCI MMC/SD Card Reader"},
 	{ 0x10ec,	0x5249,	RTSX_F_5229,    "Realtek RTS5249 PCI MMC/SD Card Reader"},
 	{ 0x10ec,	0x525A,	RTSX_F_525A,    "Realtek RTS525A PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x5286,	RTSX_F_DEFAULT, "Realtek RTS5286 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5286,	RTSX_F_DEFAULT, "Realtek RTL8402 PCI MMC/SD Card Reader"},
 	{ 0x10ec,	0x5287,	RTSX_F_8411B,	"Realtek RTL8411B PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5289,	RTSX_F_DEFAULT,	"Realtek RTL8411 PCI MMC/SD Card Reader"},
 	{ 0, 		0,	0,		NULL}
 };
 
@@ -135,11 +136,11 @@ static void	rtsx_intr(void *arg);
 static int	rtsx_wait_intr(struct rtsx_softc *sc, int mask, int timeout);
 static void	rtsx_handle_card_present(struct rtsx_softc *sc);
 static void	rtsx_card_task(void *arg, int pending __unused);
-static int	rtsx_is_card_present(struct rtsx_softc *sc);
-#if 0
+static bool	rtsx_is_card_present(struct rtsx_softc *sc);
+#if 0  /* For led */
 static int	rtsx_led_enable(struct rtsx_softc *sc);
 static int	rtsx_led_disable(struct rtsx_softc *sc);
-#endif
+#endif /* For led */
 static int	rtsx_init(struct rtsx_softc *sc);
 static int	rtsx_read(struct rtsx_softc *, uint16_t, uint8_t *);
 static int	rtsx_read_cfg(struct rtsx_softc *sc, uint8_t func, uint16_t addr, uint32_t *val);
@@ -434,7 +435,7 @@ rtsx_intr(void *arg)
 	/* start task to handle SD card status change */
 	/* from dwmmc.c */
 	if (status & RTSX_SD_INT) {
-		device_printf(sc->rtsx_dev, "Card inserted/removed\n");
+		device_printf(sc->rtsx_dev, "Interrupt card inserted/removed\n");
 		rtsx_handle_card_present(sc);
 	}
 	if (sc->rtsx_req == NULL) {
@@ -480,8 +481,9 @@ rtsx_wait_intr(struct rtsx_softc *sc, int mask, int timeout)
 	return (error);
 }
 
-/* from dwmmc.c */
-/* called from the IRQ handler */
+/*
+ * Function called from the IRQ handler (from dwmmc.c).
+ */
 static void
 rtsx_handle_card_present(struct rtsx_softc *sc)
 {
@@ -500,7 +502,9 @@ rtsx_handle_card_present(struct rtsx_softc *sc)
 	}
 }
 
-/* this is called at startup */
+/*
+ * This funtion is called at startup.
+ */
 static void
 rtsx_card_task(void *arg, int pending __unused)
 {
@@ -542,7 +546,7 @@ rtsx_card_task(void *arg, int pending __unused)
 	}
 }
 
-static int
+static bool
 rtsx_is_card_present(struct rtsx_softc *sc)
 {
 	uint32_t status;
@@ -813,11 +817,10 @@ rtsx_set_sd_clock(struct rtsx_softc *sc, uint32_t freq)
 		goto done;
 	}
 
-	/*
-	 * Enable SD clock.
-	 */
+	/* Enable SD clock */
 	error = rtsx_switch_sd_clock(sc, n, div, mcu);
-done:
+
+ done:
 	return error;
 }
 
@@ -917,7 +920,85 @@ rtsx_bus_power_off(struct rtsx_softc *sc)
 static int
 rtsx_bus_power_up(struct rtsx_softc *sc)
 {
+	uint8_t enable3;
+	int error;
 
+	if (bootverbose)
+		device_printf(sc->rtsx_dev, "rtsx_bus_power_on()\n");
+	
+	if (sc->rtsx_flags & RTSX_F_525A) {
+		error = rtsx_write(sc, RTSX_LDO_VCC_CFG1, RTSX_LDO_VCC_TUNE_MASK,
+				   RTSX_LDO_VCC_3V3);
+		if (error) {
+			device_printf(sc->rtsx_dev, "Error bus power on RTSX_F_F525A");
+			return (error);
+		}
+	}
+
+	/* Select SD card. */
+	RTSX_WRITE(sc, RTSX_CARD_SELECT, RTSX_SD_MOD_SEL);
+	RTSX_WRITE(sc, RTSX_CARD_SHARE_MODE, RTSX_CARD_SHARE_48_SD);
+	RTSX_SET(sc, RTSX_CARD_CLK_EN, RTSX_SD_CLK_EN);
+
+	/* Enable pull control. */
+	if (sc->rtsx_flags & RTSX_F_8411B) {
+		if (sc->rtsx_flags & RTSX_F_8411B_QFN48) {
+			RTSX_WRITE(sc, RTSX_CARD_PULL_CTL2, 0xaa);
+			RTSX_WRITE(sc, RTSX_CARD_PULL_CTL3, 0xf9);
+			RTSX_WRITE(sc, RTSX_CARD_PULL_CTL6, 0x19);
+		} else {
+			RTSX_WRITE(sc, RTSX_CARD_PULL_CTL1, 0xaa);
+			RTSX_WRITE(sc, RTSX_CARD_PULL_CTL2, 0xaa);
+			RTSX_WRITE(sc, RTSX_CARD_PULL_CTL3, 0xd9);
+			RTSX_WRITE(sc, RTSX_CARD_PULL_CTL4, 0x59);
+			RTSX_WRITE(sc, RTSX_CARD_PULL_CTL5, 0x59);
+			RTSX_WRITE(sc, RTSX_CARD_PULL_CTL6, 0x15);
+		}
+	} else {
+		RTSX_WRITE(sc, RTSX_CARD_PULL_CTL1, RTSX_PULL_CTL_ENABLE12);
+		RTSX_WRITE(sc, RTSX_CARD_PULL_CTL2, RTSX_PULL_CTL_ENABLE12);
+		if (sc->rtsx_flags & RTSX_F_5229_TYPE_C)
+			enable3 = RTSX_PULL_CTL_ENABLE3_TYPE_C;
+		else
+			enable3 = RTSX_PULL_CTL_ENABLE3;
+		RTSX_WRITE(sc, RTSX_CARD_PULL_CTL3, enable3);
+	}
+
+
+	/* Partial power. */
+	if (sc->rtsx_flags & RTSX_F_8411B) {
+		RTSX_BITOP(sc, RTSX_CARD_PWR_CTL, RTSX_BPP_POWER_MASK,
+			   RTSX_BPP_POWER_5_PERCENT_ON);
+		RTSX_BITOP(sc, RTSX_LDO_CTL, RTSX_BPP_LDO_POWB,
+			   RTSX_BPP_LDO_SUSPEND);
+		DELAY(150);
+		RTSX_BITOP(sc, RTSX_CARD_PWR_CTL, RTSX_BPP_POWER_MASK,
+			   RTSX_BPP_POWER_10_PERCENT_ON);
+		DELAY(150);
+		RTSX_BITOP(sc, RTSX_CARD_PWR_CTL, RTSX_BPP_POWER_MASK,
+			   RTSX_BPP_POWER_15_PERCENT_ON);
+		DELAY(150);
+		RTSX_BITOP(sc, RTSX_CARD_PWR_CTL, RTSX_BPP_POWER_MASK,
+			   RTSX_BPP_POWER_ON);
+		RTSX_BITOP(sc, RTSX_LDO_CTL, RTSX_BPP_LDO_POWB,
+			   RTSX_BPP_LDO_ON);
+	} else {
+		RTSX_SET(sc, RTSX_CARD_PWR_CTL, RTSX_SD_PARTIAL_PWR_ON);
+		if (sc->rtsx_flags & RTSX_F_5209)
+			RTSX_SET(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_SUSPEND);
+		else
+			RTSX_SET(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_VCC1);
+	}
+
+	/* Enable SD card output */
+	RTSX_WRITE(sc, RTSX_CARD_OE, RTSX_SD_OUTPUT_EN);
+	
+	return (0);
+}
+
+static int
+rtsx_bus_power_on(struct rtsx_softc *sc)
+{
 	uint8_t enable3;
 	int error;
 
@@ -963,8 +1044,8 @@ rtsx_bus_power_up(struct rtsx_softc *sc)
 	}
 
 	/*
-	 * To avoid a current peak, enable card power in two phases with a
-	 * delay in between.
+	 * To avoid a current peak, enable card power in two phases
+	 * with a delay in between.
 	 */
 	if (sc->rtsx_flags & RTSX_F_8411B) {
 		RTSX_BITOP(sc, RTSX_CARD_PWR_CTL, RTSX_BPP_POWER_MASK,
@@ -1000,94 +1081,13 @@ rtsx_bus_power_up(struct rtsx_softc *sc)
 			RTSX_SET(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_VCC2);
 	}
 
-	/* Enable SD card output. */
+	/* Enable SD card output */
 	RTSX_WRITE(sc, RTSX_CARD_OE, RTSX_SD_OUTPUT_EN);
 
 	return (0);
 }
 
-static int
-rtsx_bus_power_on(struct rtsx_softc *sc)
-{
-	uint8_t enable3;
-	int error;
-
-	if (bootverbose)
-		device_printf(sc->rtsx_dev, "rtsx_bus_power_on()\n");
-	
-	if (sc->rtsx_flags & RTSX_F_525A) {
-		error = rtsx_write(sc, RTSX_LDO_VCC_CFG1, RTSX_LDO_VCC_TUNE_MASK,
-				   RTSX_LDO_VCC_3V3);
-		if (error) {
-			device_printf(sc->rtsx_dev, "Error bus power on RTSX_F_F525A");
-			return (error);
-		}
-	}
-
-	/* Select SD card. */
-	RTSX_WRITE(sc, RTSX_CARD_SELECT, RTSX_SD_MOD_SEL);
-	RTSX_WRITE(sc, RTSX_CARD_SHARE_MODE, RTSX_CARD_SHARE_48_SD);
-	RTSX_SET(sc, RTSX_CARD_CLK_EN, RTSX_SD_CLK_EN);
-
-	/* Enable pull control. */
-	if (sc->rtsx_flags & RTSX_F_8411B) {
-		if (sc->rtsx_flags & RTSX_F_8411B_QFN48) {
-			RTSX_WRITE(sc, RTSX_CARD_PULL_CTL2, 0xaa);
-			RTSX_WRITE(sc, RTSX_CARD_PULL_CTL3, 0xf9);
-			RTSX_WRITE(sc, RTSX_CARD_PULL_CTL6, 0x19);
-		} else {
-			RTSX_WRITE(sc, RTSX_CARD_PULL_CTL1, 0xaa);
-			RTSX_WRITE(sc, RTSX_CARD_PULL_CTL2, 0xaa);
-			RTSX_WRITE(sc, RTSX_CARD_PULL_CTL3, 0xd9);
-			RTSX_WRITE(sc, RTSX_CARD_PULL_CTL4, 0x59);
-			RTSX_WRITE(sc, RTSX_CARD_PULL_CTL5, 0x59);
-			RTSX_WRITE(sc, RTSX_CARD_PULL_CTL6, 0x15);
-		}
-	} else {
-		RTSX_WRITE(sc, RTSX_CARD_PULL_CTL1, RTSX_PULL_CTL_ENABLE12);
-		RTSX_WRITE(sc, RTSX_CARD_PULL_CTL2, RTSX_PULL_CTL_ENABLE12);
-		if (sc->rtsx_flags & RTSX_F_5229_TYPE_C)
-			enable3 = RTSX_PULL_CTL_ENABLE3_TYPE_C;
-		else
-			enable3 = RTSX_PULL_CTL_ENABLE3;
-		RTSX_WRITE(sc, RTSX_CARD_PULL_CTL3, enable3);
-	}
-
-	/*
-	 * To avoid a current peak, enable card power in two phases with a
-	 * delay in between.
-	 */
-
-	/* Partial power. */
-	if (sc->rtsx_flags & RTSX_F_8411B) {
-		RTSX_BITOP(sc, RTSX_CARD_PWR_CTL, RTSX_BPP_POWER_MASK,
-			   RTSX_BPP_POWER_5_PERCENT_ON);
-		RTSX_BITOP(sc, RTSX_LDO_CTL, RTSX_BPP_LDO_POWB,
-			   RTSX_BPP_LDO_SUSPEND);
-		DELAY(150);
-		RTSX_BITOP(sc, RTSX_CARD_PWR_CTL, RTSX_BPP_POWER_MASK,
-			   RTSX_BPP_POWER_10_PERCENT_ON);
-		DELAY(150);
-		RTSX_BITOP(sc, RTSX_CARD_PWR_CTL, RTSX_BPP_POWER_MASK,
-			   RTSX_BPP_POWER_15_PERCENT_ON);
-		DELAY(150);
-		RTSX_BITOP(sc, RTSX_CARD_PWR_CTL, RTSX_BPP_POWER_MASK,
-			   RTSX_BPP_POWER_ON);
-		RTSX_BITOP(sc, RTSX_LDO_CTL, RTSX_BPP_LDO_POWB,
-			   RTSX_BPP_LDO_ON);
-	} else {
-		/* Partial power. */
-		RTSX_SET(sc, RTSX_CARD_PWR_CTL, RTSX_SD_PARTIAL_PWR_ON);
-		if (sc->rtsx_flags & RTSX_F_5209)
-			RTSX_SET(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_SUSPEND);
-		else
-			RTSX_SET(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_VCC1);
-	}
-	
-	return (0);
-}
-
-#if 0
+#if 0  /* For led usage */
 static int
 rtsx_led_enable(struct rtsx_softc *sc)
 {
@@ -1123,7 +1123,7 @@ rtsx_led_disable(struct rtsx_softc *sc)
 
 	return (0);
 }
-#endif
+#endif /* For led usage */
 
 static uint8_t
 rtsx_response_type(uint16_t mmc_rsp)
@@ -1152,7 +1152,9 @@ rtsx_response_type(uint16_t mmc_rsp)
 	return (0);
 }
 
-/* init command buffer with SD command index and argument. */
+/*
+ * Init command buffer with SD command index and argument.
+ */
 static void
 rtsx_init_cmd(struct rtsx_softc *sc, struct mmc_command *cmd)
 {
@@ -1169,7 +1171,9 @@ rtsx_init_cmd(struct rtsx_softc *sc, struct mmc_command *cmd)
 		     0xff, cmd->arg);
 }
 
-/* Append a properly encoded host command to the host command buffer. */
+/*
+ * Append a properly encoded host command to the host command buffer.
+ */
 static void
 rtsx_push_cmd(struct rtsx_softc *sc, uint8_t cmd, uint16_t reg,
 	      uint8_t mask, uint8_t data)
@@ -1193,7 +1197,9 @@ rtsx_push_cmd(struct rtsx_softc *sc, uint8_t cmd, uint16_t reg,
 
 }
 
-/* Run the command queue and wait for completion. */
+/*
+ * Run the command queue and wait for completion.
+ */
 static int
 rtsx_send_cmd(struct rtsx_softc *sc, struct mmc_command *cmd)
 {
@@ -1219,7 +1225,9 @@ rtsx_send_cmd(struct rtsx_softc *sc, struct mmc_command *cmd)
 	return (error);
 }
 
-/* Run the command queue and don't wait for completion. */
+/*
+ * Run the command queue and don't wait for completion.
+ */
 static void
 rtsx_send_cmd_nowait(struct rtsx_softc *sc, struct mmc_command *cmd)
 {
@@ -1250,7 +1258,9 @@ rtsx_req_done(struct rtsx_softc *sc)
 	req->done(req);
 }
 
-/* Prepare for another command. */
+/*
+ * Prepare for another command.
+ */
 static void
 rtsx_soft_reset(struct rtsx_softc *sc)
 {
@@ -1299,22 +1309,22 @@ rtsx_send_req_get_resp(struct rtsx_softc *sc, struct mmc_command *cmd) {
 
 	rtsx_init_cmd(sc, cmd);
 
-	/* Queue command to set response type. */
+	/* Queue command to set response type */
 	rtsx_push_cmd(sc, RTSX_WRITE_REG_CMD, RTSX_SD_CFG2,
 		      0xff, rsp_type);
 
-	/* Use the ping-pong buffer (cmd buffer) for commands which do not transfer data. */
+	/* Use the ping-pong buffer (cmd buffer) for commands which do not transfer data */
 	rtsx_push_cmd(sc, RTSX_WRITE_REG_CMD, RTSX_CARD_DATA_SOURCE,
 		      0x01, RTSX_PINGPONG_BUFFER);
 
-	/* Queue commands to perform SD transfer. */
+	/* Queue commands to perform SD transfer */
 	rtsx_push_cmd(sc, RTSX_WRITE_REG_CMD, RTSX_SD_TRANSFER,
 		      0xff, RTSX_TM_CMD_RSP | RTSX_SD_TRANSFER_START);
 	rtsx_push_cmd(sc, RTSX_CHECK_REG_CMD, RTSX_SD_TRANSFER,
 		      RTSX_SD_TRANSFER_END|RTSX_SD_STAT_IDLE,
 		      RTSX_SD_TRANSFER_END|RTSX_SD_STAT_IDLE);
 
-	/* If needed queue commands to read back card status response.*/
+	/* If needed queue commands to read back card status response */
 	if (rsp_type == RTSX_SD_RSP_TYPE_R2) {
 		/* Read data from ping-pong buffer */
 		for (reg = RTSX_PPBUF_BASE2; reg < RTSX_PPBUF_BASE2 + 16; reg++)
@@ -1326,15 +1336,15 @@ rtsx_send_req_get_resp(struct rtsx_softc *sc, struct mmc_command *cmd) {
 	}
 	rtsx_push_cmd(sc, RTSX_READ_REG_CMD, RTSX_SD_STAT1, 0, 0);
 
-	/* Run the command queue and wait for completion. */
+	/* Run the command queue and wait for completion */
 	if ((error = rtsx_send_cmd(sc, cmd)))
 		return (error);
 
-	/* Sync command DMA buffer. */
+	/* Sync command DMA buffer */
 	bus_dmamap_sync(sc->rtsx_cmd_dma_tag, sc->rtsx_cmd_dmamap, BUS_DMASYNC_POSTREAD);
 	bus_dmamap_sync(sc->rtsx_cmd_dma_tag, sc->rtsx_cmd_dmamap, BUS_DMASYNC_POSTWRITE);
 	
-	/* Copy card response into mmc response buffer. */
+	/* Copy card response into mmc response buffer */
 	if (ISSET(cmd->flags, MMC_RSP_PRESENT)) {
 		uint32_t *cmd_buffer = (uint32_t *)(sc->rtsx_cmd_dmamem);
 
@@ -1344,7 +1354,7 @@ rtsx_send_req_get_resp(struct rtsx_softc *sc, struct mmc_command *cmd) {
 		}
 
 		if (rsp_type == RTSX_SD_RSP_TYPE_R2) {
-			/* First byte is CHECK_REG_CMD return value, skip it. */
+			/* First byte is CHECK_REG_CMD return value, skip it */
 			unsigned char *ptr = (unsigned char *)cmd_buffer + 1;
 			int i;
 			
@@ -1416,7 +1426,7 @@ rtsx_xfer_short(struct rtsx_softc *sc, struct mmc_command *cmd)
 	if (read) {
 		rtsx_init_cmd(sc, cmd);
 
-		/* Queue commands to configure data transfer size. */
+		/* Queue commands to configure data transfer size */
 		rtsx_push_cmd(sc, RTSX_WRITE_REG_CMD, RTSX_SD_BYTE_CNT_L,
 			      0xff, (cmd->data->xfer_len & 0xff));
 		rtsx_push_cmd(sc, RTSX_WRITE_REG_CMD, RTSX_SD_BYTE_CNT_H,
@@ -1431,11 +1441,11 @@ rtsx_xfer_short(struct rtsx_softc *sc, struct mmc_command *cmd)
 			      0xff, RTSX_SD_CALCULATE_CRC7 | RTSX_SD_CHECK_CRC16 |
 			      RTSX_SD_NO_WAIT_BUSY_END | RTSX_SD_CHECK_CRC7 | RTSX_SD_RSP_LEN_6);
 	
-		/* Use the ping-pong buffer (cmd buffer). */
+		/* Use the ping-pong buffer (cmd buffer) */
 		rtsx_push_cmd(sc, RTSX_WRITE_REG_CMD, RTSX_CARD_DATA_SOURCE,
 			      0x01, RTSX_PINGPONG_BUFFER);
 
-		/* Queue commands to perform SD transfer. */
+		/* Queue commands to perform SD transfer */
 		rtsx_push_cmd(sc, RTSX_WRITE_REG_CMD, RTSX_SD_TRANSFER,
 			      0xff, RTSX_TM_NORMAL_READ | RTSX_SD_TRANSFER_START);
 		rtsx_push_cmd(sc, RTSX_CHECK_REG_CMD, RTSX_SD_TRANSFER,
@@ -1483,7 +1493,9 @@ rtsx_xfer_short(struct rtsx_softc *sc, struct mmc_command *cmd)
 	return (error);
 }
 
-/* Use ping-pong buffer (cmd buffer) for transfer */
+/*
+ * Use the ping-pong buffer (cmd buffer) for transfer <= 512 bytes.
+ */
 static int
 rtsx_read_ppbuf(struct rtsx_softc *sc, struct mmc_command *cmd)
 {
@@ -1503,7 +1515,7 @@ rtsx_read_ppbuf(struct rtsx_softc *sc, struct mmc_command *cmd)
 		if ((error = rtsx_send_cmd(sc, cmd)))
 		    return (error);
 
-		/* Sync command DMA buffer. */
+		/* Sync command DMA buffer */
 		bus_dmamap_sync(sc->rtsx_cmd_dma_tag, sc->rtsx_cmd_dmamap, BUS_DMASYNC_POSTREAD);
 		bus_dmamap_sync(sc->rtsx_cmd_dma_tag, sc->rtsx_cmd_dmamap, BUS_DMASYNC_POSTWRITE);
 
@@ -1520,7 +1532,7 @@ rtsx_read_ppbuf(struct rtsx_softc *sc, struct mmc_command *cmd)
 		if ((error = rtsx_send_cmd(sc, cmd)))
 			return (error);
 
-		/* Sync command DMA buffer. */
+		/* Sync command DMA buffer */
 		bus_dmamap_sync(sc->rtsx_cmd_dma_tag, sc->rtsx_cmd_dmamap, BUS_DMASYNC_POSTREAD);
 		bus_dmamap_sync(sc->rtsx_cmd_dma_tag, sc->rtsx_cmd_dmamap, BUS_DMASYNC_POSTWRITE);
 
@@ -1529,7 +1541,9 @@ rtsx_read_ppbuf(struct rtsx_softc *sc, struct mmc_command *cmd)
 	return (0);
 }
 
-/* Use ping-pong buffer (cmd buffer) for transfer */
+/*
+ * Use the ping-pong buffer (cmd buffer) for transfer <= 512 bytes.
+ */
 static int
 rtsx_write_ppbuf(struct rtsx_softc *sc, struct mmc_command *cmd)
 {
@@ -1566,6 +1580,9 @@ rtsx_write_ppbuf(struct rtsx_softc *sc, struct mmc_command *cmd)
 	return (0);
 }
 
+/*
+ * Use the data buffer for transfer > 512 bytes.
+ */
 static int
 rtsx_xfer(struct rtsx_softc *sc, struct mmc_command *cmd)
 {
@@ -1591,29 +1608,19 @@ rtsx_xfer(struct rtsx_softc *sc, struct mmc_command *cmd)
 		return ENOMEM;
 	}
 
-//	if (!read)
-//		return (ENOBUFS);
-	
-//	RTSX_CLR(sc, RTSX_SD_CFG1, RTSX_CLK_DIVIDE_MASK);
-
 	if (!read) {
 		error = rtsx_send_req_get_resp(sc, cmd);
 		if (error)
 			return (error);
 	}
 	
-	/* Configure DMA transfer mode parameters. */
+	/* Configure DMA transfer mode parameters */
 	if (cmd->opcode == MMC_READ_MULTIPLE_BLOCK)
 		cfg2 = RTSX_SD_CHECK_CRC16 | RTSX_SD_NO_WAIT_BUSY_END | RTSX_SD_RSP_LEN_6;
 	else
 		cfg2 = RTSX_SD_CHECK_CRC16 | RTSX_SD_NO_WAIT_BUSY_END | RTSX_SD_RSP_LEN_0;
 	if (read) {
 		dma_dir = RTSX_DMA_DIR_FROM_CARD;
-		/*
-		 * Use transfer mode AUTO_READ1, which assumes we've already
-		 * sent the read command and gotten the response, and will
-		 * send CMD 12 manually after reading multiple blocks.
-		 */
      		tmode = RTSX_TM_AUTO_READ1;
 		cfg2 |= RTSX_SD_CALCULATE_CRC7 | RTSX_SD_CHECK_CRC7;
 
@@ -1623,7 +1630,7 @@ rtsx_xfer(struct rtsx_softc *sc, struct mmc_command *cmd)
 		/*
 		 * Use transfer mode AUTO_WRITE3, wich assumes we've already
 		 * sent the write command and gotten the response, and will
-		 * send CMD 12 manually after writing multiple blocks.
+		 * send CMD 12 manually after writing.
 		 */
 		tmode = RTSX_TM_AUTO_WRITE3;
 		cfg2 |= RTSX_SD_NO_CALCULATE_CRC7 | RTSX_SD_NO_CHECK_CRC7;
@@ -1631,7 +1638,7 @@ rtsx_xfer(struct rtsx_softc *sc, struct mmc_command *cmd)
 		sc->rtsx_cmd_index = 0;
 	}
 
-	/* Queue commands to configure data transfer size. */
+	/* Queue commands to configure data transfer size */
 	rtsx_push_cmd(sc, RTSX_WRITE_REG_CMD, RTSX_SD_BYTE_CNT_L,
 		      0xff, (cmd->data->xfer_len & 0xff));
 	rtsx_push_cmd(sc, RTSX_WRITE_REG_CMD, RTSX_SD_BYTE_CNT_H,
@@ -1641,7 +1648,7 @@ rtsx_xfer(struct rtsx_softc *sc, struct mmc_command *cmd)
 	rtsx_push_cmd(sc, RTSX_WRITE_REG_CMD, RTSX_SD_BLOCK_CNT_H,
 		      0xff, ((cmd->data->len / cmd->data->xfer_len) >> 8));
 
-	/* Configure DMA controller. */
+	/* Configure DMA controller */
 	rtsx_push_cmd(sc, RTSX_WRITE_REG_CMD, RTSX_IRQSTAT0,
 		     RTSX_DMA_DONE_INT, RTSX_DMA_DONE_INT);
 	rtsx_push_cmd(sc, RTSX_WRITE_REG_CMD, RTSX_DMATC3,
@@ -1656,21 +1663,21 @@ rtsx_xfer(struct rtsx_softc *sc, struct mmc_command *cmd)
 		     RTSX_DMA_EN | RTSX_DMA_DIR | RTSX_DMA_PACK_SIZE_MASK,
 		     RTSX_DMA_EN | dma_dir | RTSX_DMA_512);
 
-	/* Use the DMA ring buffer for commands which transfer data. */
+	/* Use the DMA ring buffer for commands which transfer data */
 	rtsx_push_cmd(sc, RTSX_WRITE_REG_CMD, RTSX_CARD_DATA_SOURCE,
 		      0x01, RTSX_RING_BUFFER);
 
-	/* Queue command to set response type. */
+	/* Queue command to set response type */
 	rtsx_push_cmd(sc, RTSX_WRITE_REG_CMD, RTSX_SD_CFG2,
 		     0xff, cfg2); 
 
-	/* Queue commands to perform SD transfer. */
+	/* Queue commands to perform SD transfer */
 	rtsx_push_cmd(sc, RTSX_WRITE_REG_CMD, RTSX_SD_TRANSFER,
 		      0xff, tmode | RTSX_SD_TRANSFER_START);
 	rtsx_push_cmd(sc, RTSX_CHECK_REG_CMD, RTSX_SD_TRANSFER,
 		      RTSX_SD_TRANSFER_END, RTSX_SD_TRANSFER_END);
 
-	/* Run the command queue and don't wait for completion. */
+	/* Run the command queue and don't wait for completion */
 	rtsx_send_cmd_nowait(sc, cmd);
 
 	sc->rtsx_intr_status = 0;
@@ -1678,11 +1685,11 @@ rtsx_xfer(struct rtsx_softc *sc, struct mmc_command *cmd)
 	if (!read)
 		memcpy(sc->rtsx_data_dmamem, cmd->data->data, cmd->data->len);
 	
-	/* Sync data DMA buffer. */
+	/* Sync data DMA buffer */
 	bus_dmamap_sync(sc->rtsx_data_dma_tag, sc->rtsx_data_dmamap, BUS_DMASYNC_PREREAD);
 	bus_dmamap_sync(sc->rtsx_data_dma_tag, sc->rtsx_data_dmamap, BUS_DMASYNC_PREWRITE);
 
-	/* Tell the chip where the data buffer is and run the transfer. */
+	/* Tell the chip where the data buffer is and run the transfer */
 	WRITE4(sc, RTSX_HDBAR, sc->rtsx_data_buffer);
 	WRITE4(sc, RTSX_HDBCTLR, RTSX_TRIG_DMA | (read ? RTSX_DMA_READ : 0) |
 	       (cmd->data->len & 0x00ffffff));
@@ -1692,13 +1699,14 @@ rtsx_xfer(struct rtsx_softc *sc, struct mmc_command *cmd)
 		return (error);
 	}
 
-	/* Sync data DMA buffer. */
+	/* Sync data DMA buffer */
 	bus_dmamap_sync(sc->rtsx_data_dma_tag, sc->rtsx_data_dmamap, BUS_DMASYNC_POSTREAD);
 	bus_dmamap_sync(sc->rtsx_data_dma_tag, sc->rtsx_data_dmamap, BUS_DMASYNC_POSTWRITE);
 
 	if (read)
 		memcpy(cmd->data->data, sc->rtsx_data_dmamem, cmd->data->len);
 	else
+		/* Send CMD12 after AUTO_WRITE3 */
 		rtsx_send_req_get_resp(sc, sc->rtsx_req->stop);
 
 	return (error);
@@ -1884,7 +1892,9 @@ rtsx_mmcbr_update_ios(device_t bus, device_t child)
 	return (0);
 }
 
-/* Set output stage logic power voltage */
+/*
+ * Set output stage logic power voltage.
+ */
 static int
 rtsx_mmcbr_switch_vccq(device_t bus, device_t child __unused)
 {
@@ -1916,11 +1926,6 @@ rtsx_mmcbr_switch_vccq(device_t bus, device_t child __unused)
 	if (bootverbose)
 		device_printf(sc->rtsx_dev, "rtsx_mmcbr_switch_vccq(%d)\n", vccq);
 
-//	rtsx_bus_power_off(sc);
-
-//	DELAY(200);
-	
-//	rtsx_bus_power_on(sc);
 	sc->rtsx_power_mode = power_on;
 		
 	return (0);
@@ -2073,13 +2078,13 @@ rtsx_mmcbr_release_host(device_t bus, device_t child __unused)
  *
  */
 
-static int
-rtsx_probe(device_t dev)
-{
 /*
  * Compare the device ID (chip) of this device against the IDs that this driver
  * supports. If there is a match, set the description and return success.
  */
+static int
+rtsx_probe(device_t dev)
+{
 	uint16_t vendor;
 	uint16_t device;
 	struct rtsx_softc *sc;
@@ -2105,11 +2110,12 @@ rtsx_probe(device_t dev)
 	return (result);
 }
 
+/*
+ * Attach function is only called if the probe is successful.
+ */
 static int
 rtsx_attach(device_t dev)
 {
-/* Attach function is only called if the probe is successful. */
-
 	struct rtsx_softc 	*sc = device_get_softc(dev);
 	struct sysctl_ctx_list	*ctx;
 	struct sysctl_oid_list	*tree;
@@ -2185,12 +2191,7 @@ rtsx_attach(device_t dev)
 			sc->rtsx_flags |= RTSX_F_SDIO_SUPPORT;
 	}
 
-	/*
-	 *
-	 * Allocate three DMA buffers: a command buffer, a data buffer, and a buffer for
-	 * ADMA transfer descriptors which describe scatter-gather (SG) I/O operations.
-	 *
-	 */
+	/* Allocate two DMA buffers: a command buffer and a data buffer */
 	error = rtsx_dma_alloc(sc);
 	if (error) {
 		goto destroy_rtsx_irq;
@@ -2315,7 +2316,6 @@ static device_method_t rtsx_methods[] = {
 	/* MMC bridge interface */
      	DEVMETHOD(mmcbr_update_ios,	rtsx_mmcbr_update_ios),
 	DEVMETHOD(mmcbr_switch_vccq,	rtsx_mmcbr_switch_vccq),
-
 	DEVMETHOD(mmcbr_tune,		rtsx_mmcbr_tune),
 	DEVMETHOD(mmcbr_retune,		rtsx_mmcbr_retune),
 	DEVMETHOD(mmcbr_request,	rtsx_mmcbr_request),
