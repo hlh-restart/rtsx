@@ -4,7 +4,7 @@
  * Copyright (c) 2006 Uwe Stuehler <uwe@openbsd.org>
  * Copyright (c) 2012 Stefan Sperling <stsp@openbsd.org>
  * Copyright (c) 2020 Henri Hennebert <hlh@restart.be>
- * Copyright (c) 2020 Gary Jennejohn <gljennjohn@gmail.com>
+ * Copyright (c) 2020 Gary Jennejohn <gj@freebsd.org>
  * Copyright (c) 2020 Jesper Schmitz Mouridsen <jsm@FreeBSD.org>
  * All rights reserved.
  *
@@ -609,7 +609,18 @@ rtsx_init(struct rtsx_softc *sc)
 		error = rtsx_write_phy(sc, 0x00, 0xB966);
 	else if (sc->rtsx_flags & (RTSX_F_5227 | RTSX_F_5229))
 		error = rtsx_write_phy(sc, 0x00, 0xBA42);
-	else
+	else if (sc->rtsx_flags & RTSX_F_525A) {
+		(void)rtsx_write_phy(sc, RTSX_PHY_FLD0,
+				     RTSX_PHY_FLD0_CLK_REQ_20C | RTSX_PHY_FLD0_RX_IDLE_EN |
+				     RTSX_PHY_FLD0_BIT_ERR_RSTN | RTSX_PHY_FLD0_BER_COUNT |
+				     RTSX_PHY_FLD0_BER_TIMER | RTSX_PHY_FLD0_CHECK_EN);
+		(void)rtsx_write_phy(sc, RTSX_PHY_ANA03,
+				     RTSX_PHY_ANA03_TIMER_MAX | RTSX_PHY_ANA03_OOBS_DEB_EN |
+				     RTSX_PHY_CMU_DEBUG_EN);
+		error = rtsx_write_phy(sc, RTSX_PHY_REV0,
+				       RTSX_PHY_REV0_FILTER_OUT | RTSX_PHY_REV0_CDR_BYPASS_PFD |
+				       RTSX_PHY_REV0_CDR_RX_IDLE_BYPASS);
+	} else
 		error = 0;
 	if (error) {
 		device_printf(sc->rtsx_dev, "Can't write phy register\n");
@@ -1915,12 +1926,18 @@ rtsx_mmcbr_switch_vccq(device_t bus, device_t child __unused)
 		break;
 	};
 
-	if ((sc->rtsx_flags & RTSX_F_8411B) && vccq == 330) {
-		(void)rtsx_write(sc, RTSX_SD30_DRIVE_SEL, RTSX_SD30_DRIVE_SEL_MASK, RTSX_SD30_DRIVE_SEL_3V3);
-		(void)rtsx_write(sc, RTSX_LDO_CTL,
-				 (RTSX_BPP_ASIC_MASK << RTSX_BPP_SHIFT_8411) | RTSX_BPP_PAD_MASK,
-				 (RTSX_BPP_ASIC_3V3 << RTSX_BPP_SHIFT_8411) | RTSX_BPP_PAD_3V3);
-		DELAY(200);
+	if (vccq == 330) {
+		if (sc->rtsx_flags & RTSX_F_8411B) {
+			(void)rtsx_write(sc, RTSX_SD30_DRIVE_SEL, RTSX_SD30_DRIVE_SEL_MASK, RTSX_SD30_DRIVE_SEL_3V3);
+			(void)rtsx_write(sc, RTSX_LDO_CTL,
+					 (RTSX_BPP_ASIC_MASK << RTSX_BPP_SHIFT_8411) | RTSX_BPP_PAD_MASK,
+					 (RTSX_BPP_ASIC_3V3 << RTSX_BPP_SHIFT_8411) | RTSX_BPP_PAD_3V3);
+			DELAY(200);
+		} else if (sc->rtsx_flags & RTSX_F_525A) {
+			(void)rtsx_write(sc, RTSX_LDO_CONFIG2, RTSX_LDO_D3318_MASK, RTSX_LDO_D3318_33V);
+			(void)rtsx_write(sc, RTSX_SD_PAD_CTL, RTSX_SD_IO_USING_1V8, 0);
+			DELAY(200);
+		}
 	}
 
 	if (bootverbose)
