@@ -68,9 +68,11 @@ __FBSDID("$FreeBSD$");
 #define	RTSX_F_5227		0x0008
 #define	RTSX_F_5229		0x0010
 #define	RTSX_F_5229_TYPE_C	0x0020
-#define	RTSX_F_525A		0x0040
-#define RTSX_F_8411B		0x0080
-#define RTSX_F_8411B_QFN48	0x0100
+#define RTSX_F_522A		0x0040
+#define RTSX_F_522A_TYPE_A	0x0080
+#define	RTSX_F_525A		0x0100
+#define RTSX_F_8411B		0x0200
+#define RTSX_F_8411B_QFN48	0x0400
 
 /* The softc holds our per-instance data. */
 struct rtsx_softc {
@@ -120,12 +122,12 @@ static const struct rtsx_device {
 	{ 0x10ec,	0x5209,	RTSX_F_5209,    "Realtek RTS5209 PCI MMC/SD Card Reader"},
 	{ 0x10ec,	0x5227,	RTSX_F_5227,	"Realtek RTS5227 PCI MMC/SD Card Reader"},
 	{ 0x10ec,	0x5229,	RTSX_F_5229,    "Realtek RTS5229 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x522a,	RTSX_F_DEFAULT, "Realtek RTS522A PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x522a,	RTSX_F_522A,    "Realtek RTS522A PCI MMC/SD Card Reader"},
 	{ 0x10ec,	0x5249,	RTSX_F_5229,    "Realtek RTS5249 PCI MMC/SD Card Reader"},
 	{ 0x10ec,	0x525A,	RTSX_F_525A,    "Realtek RTS525A PCI MMC/SD Card Reader"},
 	{ 0x10ec,	0x5286,	RTSX_F_DEFAULT, "Realtek RTL8402 PCI MMC/SD Card Reader"},
 	{ 0x10ec,	0x5287,	RTSX_F_8411B,	"Realtek RTL8411B PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x5289,	RTSX_F_DEFAULT,	"Realtek RTL8411 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5289,	RTSX_F_8411B,	"Realtek RTL8411 PCI MMC/SD Card Reader"},
 	{ 0, 		0,	0,		NULL}
 };
 
@@ -150,7 +152,9 @@ static int	rtsx_set_sd_clock(struct rtsx_softc *sc, uint32_t freq);
 static int	rtsx_stop_sd_clock(struct rtsx_softc *sc);
 static int	rtsx_switch_sd_clock(struct rtsx_softc *sc, uint8_t n, int div, int mcu);
 static int	rtsx_bus_power_off(struct rtsx_softc *sc);
+#if 0
 static int	rtsx_bus_power_up(struct rtsx_softc *sc);
+#endif
 static int	rtsx_bus_power_on(struct rtsx_softc *sc);
 static uint8_t	rtsx_response_type(uint16_t mmc_rsp);
 static void	rtsx_init_cmd(struct rtsx_softc *sc, struct mmc_command *cmd);
@@ -560,7 +564,7 @@ rtsx_init(struct rtsx_softc *sc)
 {
 	uint32_t status;
 	uint8_t version;
-	int error;
+	int error = 0;
 
 	sc->rtsx_host.host_ocr = RTSX_SUPPORTED_VOLTAGE;
 	sc->rtsx_host.caps = MMC_CAP_4_BIT_DATA;
@@ -580,6 +584,10 @@ rtsx_init(struct rtsx_softc *sc)
 			device_printf(sc->rtsx_dev, "RTSX_F_5229 unknown ic version 0x%x\n", version);
 			return (1);
 		}
+	} else if (sc->rtsx_flags & RTSX_F_522A) {
+		RTSX_READ(sc, RTSX_DUMMY_REG, &version);
+		if ((version & 0x0F) == RTSX_IC_VERSION_A)
+		    sc->rtsx_flags |= RTSX_F_522A_TYPE_A;
 	} else if (sc->rtsx_flags & RTSX_F_8411B) {
 		RTSX_READ(sc, RTSX_RTL8411B_PACKAGE, &version);
 		if (version & RTSX_RTL8411B_QFN48)
@@ -605,21 +613,32 @@ rtsx_init(struct rtsx_softc *sc)
 	DELAY(200);
 
 	/* XXX magic numbers from linux driver */
-	if (sc->rtsx_flags & RTSX_F_5209)
+	if (sc->rtsx_flags & RTSX_F_5209) {
 		error = rtsx_write_phy(sc, 0x00, 0xB966);
-	else if (sc->rtsx_flags & (RTSX_F_5227 | RTSX_F_5229))
+	} else if (sc->rtsx_flags & (RTSX_F_5227 | RTSX_F_5229)) {
 		error = rtsx_write_phy(sc, 0x00, 0xBA42);
-	else if (sc->rtsx_flags & RTSX_F_525A) {
-		(void)rtsx_write_phy(sc, RTSX_PHY_FLD0,
-				     RTSX_PHY_FLD0_CLK_REQ_20C | RTSX_PHY_FLD0_RX_IDLE_EN |
-				     RTSX_PHY_FLD0_BIT_ERR_RSTN | RTSX_PHY_FLD0_BER_COUNT |
-				     RTSX_PHY_FLD0_BER_TIMER | RTSX_PHY_FLD0_CHECK_EN);
-		(void)rtsx_write_phy(sc, RTSX_PHY_ANA03,
-				     RTSX_PHY_ANA03_TIMER_MAX | RTSX_PHY_ANA03_OOBS_DEB_EN |
-				     RTSX_PHY_CMU_DEBUG_EN);
-		error = rtsx_write_phy(sc, RTSX_PHY_REV0,
-				       RTSX_PHY_REV0_FILTER_OUT | RTSX_PHY_REV0_CDR_BYPASS_PFD |
-				       RTSX_PHY_REV0_CDR_RX_IDLE_BYPASS);
+	} else if (sc->rtsx_flags & RTSX_F_522A) {
+		RTSX_WRITE(sc, RTSX_RTS522A_PM_CTRL3, RTSX_D3_DELINK_MODE_EN);
+		if (sc->rtsx_flags & RTSX_F_522A_TYPE_A) {
+			error = rtsx_write_phy(sc, RTSX_PHY_RCR2, RTSX_PHY_RCR2_INIT_27S);
+			if (error)
+				return (error);
+		}
+		(void)rtsx_write_phy(sc, RTSX_PHY_RCR1, RTSX_PHY_RCR1_INIT_27S);
+		(void)rtsx_write_phy(sc, RTSX_PHY_FLD0, RTSX_PHY_FLD0_INIT_27S);
+		(void)rtsx_write_phy(sc, RTSX_PHY_FLD3, RTSX_PHY_FLD3_INIT_27S);
+		(void)rtsx_write_phy(sc, RTSX_PHY_FLD4, RTSX_PHY_FLD4_INIT_27S);
+	} else if (sc->rtsx_flags & RTSX_F_525A) {
+		(void)rtsx_write_phy(sc, RTSX__PHY_FLD0,
+				     RTSX__PHY_FLD0_CLK_REQ_20C | RTSX__PHY_FLD0_RX_IDLE_EN |
+				     RTSX__PHY_FLD0_BIT_ERR_RSTN | RTSX__PHY_FLD0_BER_COUNT |
+				     RTSX__PHY_FLD0_BER_TIMER | RTSX__PHY_FLD0_CHECK_EN);
+		(void)rtsx_write_phy(sc, RTSX__PHY_ANA03,
+				     RTSX__PHY_ANA03_TIMER_MAX | RTSX__PHY_ANA03_OOBS_DEB_EN |
+				     RTSX__PHY_CMU_DEBUG_EN);
+		(void)rtsx_write_phy(sc, RTSX__PHY_REV0,
+				     RTSX__PHY_REV0_FILTER_OUT | RTSX__PHY_REV0_CDR_BYPASS_PFD |
+				     RTSX__PHY_REV0_CDR_RX_IDLE_BYPASS);
 	} else
 		error = 0;
 	if (error) {
@@ -655,7 +674,7 @@ rtsx_init(struct rtsx_softc *sc)
 	/* Request clock by driving CLKREQ pin to zero. */
 	RTSX_SET(sc, RTSX_PETXCFG, RTSX_PETXCFG_CLKREQ_PIN);
 
-	/* Set up LED GPIO. */
+	/* Set up LED GPIO */
 	if (sc->rtsx_flags & RTSX_F_5209) {
 		RTSX_WRITE(sc, RTSX_CARD_GPIO, 0x03);
 		RTSX_WRITE(sc, RTSX_CARD_GPIO_DIR, 0x03);
@@ -928,6 +947,7 @@ rtsx_bus_power_off(struct rtsx_softc *sc)
 	return (0);
 }
 
+#if 0 /* power_up() replace by power_on() */ 
 static int
 rtsx_bus_power_up(struct rtsx_softc *sc)
 {
@@ -1006,6 +1026,7 @@ rtsx_bus_power_up(struct rtsx_softc *sc)
 	
 	return (0);
 }
+#endif /* power_up() replace by power_on() */
 
 static int
 rtsx_bus_power_on(struct rtsx_softc *sc)
@@ -1937,6 +1958,8 @@ rtsx_mmcbr_switch_vccq(device_t bus, device_t child __unused)
 			(void)rtsx_write(sc, RTSX_LDO_CONFIG2, RTSX_LDO_D3318_MASK, RTSX_LDO_D3318_33V);
 			(void)rtsx_write(sc, RTSX_SD_PAD_CTL, RTSX_SD_IO_USING_1V8, 0);
 			DELAY(200);
+		} else if (sc->rtsx_flags & RTSX_F_522A) {
+			(void)rtsx_write_phy(sc, 0x08, 0x57E4);
 		}
 	}
 
