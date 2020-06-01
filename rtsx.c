@@ -451,7 +451,6 @@ rtsx_intr(void *arg)
 		sc->rtsx_intr_status |= status;
 		wakeup(&sc->rtsx_intr_status);
 	}
-
 	RTSX_UNLOCK(sc);
 }
 
@@ -533,7 +532,6 @@ rtsx_card_task(void *arg, int pending __unused)
 			}
 		} else
 			RTSX_UNLOCK(sc);
-		
 	} else {
 		sc->rtsx_flags &= ~RTSX_F_CARD_PRESENT;
 		/* Card isn't present, detach if necessary */
@@ -541,10 +539,10 @@ rtsx_card_task(void *arg, int pending __unused)
 			if (bootverbose)
 				device_printf(sc->rtsx_dev, "Card removed\n");
 
+			RTSX_UNLOCK(sc);
 			if (device_delete_child(sc->rtsx_dev, sc->rtsx_mmc_dev))
 				device_printf(sc->rtsx_dev, "Detaching MMC bus failed\n");
 			sc->rtsx_mmc_dev = NULL;
-			RTSX_UNLOCK(sc);
 		} else
 			RTSX_UNLOCK(sc);
 	}
