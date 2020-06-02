@@ -616,7 +616,7 @@ rtsx_init(struct rtsx_softc *sc)
 	} else if (sc->rtsx_flags & (RTSX_F_5227 | RTSX_F_5229)) {
 		error = rtsx_write_phy(sc, 0x00, 0xBA42);
 	} else if (sc->rtsx_flags & RTSX_F_522A) {
-		RTSX_WRITE(sc, RTSX_RTS522A_PM_CTRL3, RTSX_D3_DELINK_MODE_EN);
+		RTSX_CLR(sc, RTSX_RTS522A_PM_CTRL3, RTSX_D3_DELINK_MODE_EN);
 		if (sc->rtsx_flags & RTSX_F_522A_TYPE_A) {
 			error = rtsx_write_phy(sc, RTSX_PHY_RCR2, RTSX_PHY_RCR2_INIT_27S);
 			if (error)
@@ -672,17 +672,25 @@ rtsx_init(struct rtsx_softc *sc)
 	/* Request clock by driving CLKREQ pin to zero. */
 	RTSX_SET(sc, RTSX_PETXCFG, RTSX_PETXCFG_CLKREQ_PIN);
 
-	/* Set up LED GPIO */
-	if (sc->rtsx_flags & RTSX_F_5209) {
-		RTSX_WRITE(sc, RTSX_CARD_GPIO, 0x03);
-		RTSX_WRITE(sc, RTSX_CARD_GPIO_DIR, 0x03);
-	} else if (sc->rtsx_flags & RTSX_F_8411B) {
+	/* Specific init */
+	if (sc->rtsx_flags & RTSX_F_8411B) {
 		if (sc->rtsx_flags & RTSX_F_8411B_QFN48)
 			RTSX_WRITE(sc, RTSX_CARD_PULL_CTL3, 0xf5);
 		/* Enable SD interrupt */
 		RTSX_WRITE(sc, RTSX_CARD_PAD_CTL, 0x05);
 		RTSX_BITOP(sc, RTSX_EFUSE_CONTENT, 0xe0, 0x80);
 		RTSX_WRITE(sc, RTSX_FUNC_FORCE_CTL, 0x00);
+	} else if (sc->rtsx_flags & RTSX_F_522A) {
+		RTSX_WRITE(sc, RTSX_FUNC_FORCE_CTL, RTSX_FUNC_FORCE_UPME_XMT_DBG);
+		RTSX_WRITE(sc, RTSX_PCLK_CTL, 0x04);
+		RTSX_WRITE(sc, RTSX_PM_EVENT_DEBUG, RTSX_PME_DEBUG_0);
+		RTSX_WRITE(sc, RTSX_PM_CLK_FORCE_CTL, 0x11);
+	}
+
+	/* Set up LED GPIO */
+	if (sc->rtsx_flags & RTSX_F_5209) {
+		RTSX_WRITE(sc, RTSX_CARD_GPIO, 0x03);
+		RTSX_WRITE(sc, RTSX_CARD_GPIO_DIR, 0x03);
 	} else {
 		RTSX_SET(sc, RTSX_GPIO_CTL, RTSX_GPIO_LED_ON);
 		/* Switch LDO3318 source from DV33 to 3V3. */
@@ -825,7 +833,6 @@ rtsx_set_sd_clock(struct rtsx_softc *sc, uint32_t freq)
 		n = 80; /* minimum */
 		div = RTSX_CLK_DIV_8;
 		mcu = 7;
-//		RTSX_SET(sc, RTSX_SD_CFG1, RTSX_CLK_DIVIDE_128);
 		RTSX_CLR(sc, RTSX_SD_CFG1, RTSX_CLK_DIVIDE_MASK);		
 		break;
 	case RTSX_SDCLK_25MHZ:
@@ -2130,8 +2137,6 @@ rtsx_probe(device_t dev)
 
 	vendor = pci_get_vendor(dev);
 	device = pci_get_device(dev);
-
-//	device_printf(dev, "Probe - Vendor ID: 0x%x - Device ID: 0x%x\n", vendor, device);
 
 	result = ENXIO;
 	for (i = 0; rtsx_devices[i].vendor != 0; i++) {
