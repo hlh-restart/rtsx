@@ -70,9 +70,10 @@ __FBSDID("$FreeBSD$");
 #define	RTSX_F_5229_TYPE_C	0x0020
 #define RTSX_F_522A		0x0040
 #define RTSX_F_522A_TYPE_A	0x0080
-#define	RTSX_F_525A		0x0100
-#define RTSX_F_8411B		0x0200
-#define RTSX_F_8411B_QFN48	0x0400
+#define RTSX_F_525A		0x0100
+#define RTSX_F_525A_TYPE_A	0x0200
+#define RTSX_F_8411B		0x0400
+#define RTSX_F_8411B_QFN48	0x0800
 
 /* The softc holds our per-instance data. */
 struct rtsx_softc {
@@ -123,11 +124,11 @@ static const struct rtsx_device {
 	{ 0x10ec,	0x5227,	RTSX_F_5227,	"Realtek RTS5227 PCI MMC/SD Card Reader"},
 	{ 0x10ec,	0x5229,	RTSX_F_5229,    "Realtek RTS5229 PCI MMC/SD Card Reader"},
 	{ 0x10ec,	0x522a,	RTSX_F_522A,    "Realtek RTS522A PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x5249,	RTSX_F_5229,    "Realtek RTS5249 PCI MMC/SD Card Reader"},
 	{ 0x10ec,	0x525A,	RTSX_F_525A,    "Realtek RTS525A PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5249,	RTSX_F_5229,    "Realtek RTS5249 PCI MMC/SD Card Reader"},
 	{ 0x10ec,	0x5286,	RTSX_F_DEFAULT, "Realtek RTL8402 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x5287,	RTSX_F_8411B,	"Realtek RTL8411B PCI MMC/SD Card Reader"},
 	{ 0x10ec,	0x5289,	RTSX_F_8411B,	"Realtek RTL8411 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5287,	RTSX_F_8411B,	"Realtek RTL8411B PCI MMC/SD Card Reader"},
 	{ 0, 		0,	0,		NULL}
 };
 
@@ -586,6 +587,10 @@ rtsx_init(struct rtsx_softc *sc)
 		RTSX_READ(sc, RTSX_DUMMY_REG, &version);
 		if ((version & 0x0F) == RTSX_IC_VERSION_A)
 		    sc->rtsx_flags |= RTSX_F_522A_TYPE_A;
+	} else if (sc->rtsx_flags & RTSX_F_525A) {
+		RTSX_READ(sc, RTSX_DUMMY_REG, &version);
+		if ((version & 0x0F) == RTSX_IC_VERSION_A)
+		    sc->rtsx_flags |= RTSX_F_525A_TYPE_A;
 	} else if (sc->rtsx_flags & RTSX_F_8411B) {
 		RTSX_READ(sc, RTSX_RTL8411B_PACKAGE, &version);
 		if (version & RTSX_RTL8411B_QFN48)
@@ -634,9 +639,10 @@ rtsx_init(struct rtsx_softc *sc)
 		(void)rtsx_write_phy(sc, RTSX__PHY_ANA03,
 				     RTSX__PHY_ANA03_TIMER_MAX | RTSX__PHY_ANA03_OOBS_DEB_EN |
 				     RTSX__PHY_CMU_DEBUG_EN);
-		(void)rtsx_write_phy(sc, RTSX__PHY_REV0,
-				     RTSX__PHY_REV0_FILTER_OUT | RTSX__PHY_REV0_CDR_BYPASS_PFD |
-				     RTSX__PHY_REV0_CDR_RX_IDLE_BYPASS);
+		if (sc->rtsx_flags & RTSX_F_525A_TYPE_A)
+		    (void)rtsx_write_phy(sc, RTSX__PHY_REV0,
+					 RTSX__PHY_REV0_FILTER_OUT | RTSX__PHY_REV0_CDR_BYPASS_PFD |
+					 RTSX__PHY_REV0_CDR_RX_IDLE_BYPASS);
 	} else
 		error = 0;
 	if (error) {
@@ -685,6 +691,9 @@ rtsx_init(struct rtsx_softc *sc)
 		RTSX_WRITE(sc, RTSX_PCLK_CTL, 0x04);
 		RTSX_WRITE(sc, RTSX_PM_EVENT_DEBUG, RTSX_PME_DEBUG_0);
 		RTSX_WRITE(sc, RTSX_PM_CLK_FORCE_CTL, 0x11);
+	} else if (sc->rtsx_flags & (RTSX_F_5229 | RTSX_F_525A)) {
+		/* from https://github.com/hackintosh-stuff/Sinetek-rtsx */
+		RTSX_WRITE(sc, RTSX_CARD_DRIVE_SEL, RTSX_RTS5229_CARD_DRIVE_DEFAULT);
 	}
 
 	/* Set up LED GPIO */
@@ -1111,11 +1120,11 @@ rtsx_bus_power_on(struct rtsx_softc *sc)
 		DELAY(200);
 	
 		/* Full power. */
-		RTSX_CLR(sc, RTSX_CARD_PWR_CTL, RTSX_SD_PWR_OFF);
+		RTSX_SET(sc, RTSX_CARD_PWR_CTL, RTSX_SD_PWR_ON);
 		if (sc->rtsx_flags & RTSX_F_5209)
-			RTSX_CLR(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_OFF);
+			RTSX_CLR(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_VCC1 | RTSX_LDO3318_VCC2);
 		else
-			RTSX_SET(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_VCC2);
+			RTSX_SET(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_VCC1 | RTSX_LDO3318_VCC2);
 	}
 
 	/* Enable SD card output */
@@ -1658,6 +1667,11 @@ rtsx_xfer(struct rtsx_softc *sc, struct mmc_command *cmd)
 		cfg2 = RTSX_SD_CHECK_CRC16 | RTSX_SD_NO_WAIT_BUSY_END | RTSX_SD_RSP_LEN_0;
 	if (read) {
 		dma_dir = RTSX_DMA_DIR_FROM_CARD;
+		/*
+		 * Use transfer mode AUTO_READ1, which assume we not
+		 * already send the read command and don't need to send
+		 * CMD 12 manually after read.
+		 */
      		tmode = RTSX_TM_AUTO_READ1;
 		cfg2 |= RTSX_SD_CALCULATE_CRC7 | RTSX_SD_CHECK_CRC7;
 
