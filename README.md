@@ -45,10 +45,12 @@ TODO:
 
 TESTED ON:
 
- - RTL8411B under FreeBSD-12.1-STABLE (ACER Aspire E15 - E5-576-77W6)
- - RTS5227  under FreeBSD-11.4-STABLE, FreeBSD 12.1-RELEASE (HP Probook 430 g2, Thinkpad T450s, Lenovo T450)
+ - RTS5209  under FreeBSD-13.0-CURRENT (ThinkPad L520)
+ - RTS5227  under FreeBSD-11.4-STABLE, FreeBSD 12.1-RELEASE (HP Probook 430 g2, Thinkpad T450s, Thinkpad T450)
+ - RTS5229  under FreeBSD 12.1-RELEASE (Lenovo ideapad 120S-14IAP)
  - RTS522A  under FreeBSD-13.0-CURRENT (Intel NUC8i5BE)
- - RTS525A  under FreeBSD-12.1-RELEASE (Dell Latitude E5570)
+ - RTS525A  under FreeBSD-12.1-RELEASE (Dell Latitude E5570, Dell XPS 13 - model 9360)
+ - RTL8411B under FreeBSD-12.1-STABLE (ACER Aspire E15 - E5-576-77W6)
 
 NOTES:
  
