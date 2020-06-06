@@ -640,9 +640,9 @@ rtsx_init(struct rtsx_softc *sc)
 				     RTSX__PHY_ANA03_TIMER_MAX | RTSX__PHY_ANA03_OOBS_DEB_EN |
 				     RTSX__PHY_CMU_DEBUG_EN);
 		if (sc->rtsx_flags & RTSX_F_525A_TYPE_A)
-		    (void)rtsx_write_phy(sc, RTSX__PHY_REV0,
-					 RTSX__PHY_REV0_FILTER_OUT | RTSX__PHY_REV0_CDR_BYPASS_PFD |
-					 RTSX__PHY_REV0_CDR_RX_IDLE_BYPASS);
+			(void)rtsx_write_phy(sc, RTSX__PHY_REV0,
+					     RTSX__PHY_REV0_FILTER_OUT | RTSX__PHY_REV0_CDR_BYPASS_PFD |
+					     RTSX__PHY_REV0_CDR_RX_IDLE_BYPASS);
 	} else
 		error = 0;
 	if (error) {
