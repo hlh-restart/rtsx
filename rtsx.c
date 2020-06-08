@@ -496,6 +496,10 @@ rtsx_handle_card_present(struct rtsx_softc *sc)
 
 	was_present = sc->rtsx_mmc_dev != NULL;
 	is_present = rtsx_is_card_present(sc);
+	if (is_present)
+		device_printf(sc->rtsx_dev, "Card present\n");
+	else
+		device_printf(sc->rtsx_dev, "Card absent\n");
 
 	if (!was_present && is_present) {
 		/* small delay for the controller */
@@ -691,6 +695,8 @@ rtsx_init(struct rtsx_softc *sc)
 		RTSX_WRITE(sc, RTSX_PCLK_CTL, 0x04);
 		RTSX_WRITE(sc, RTSX_PM_EVENT_DEBUG, RTSX_PME_DEBUG_0);
 		RTSX_WRITE(sc, RTSX_PM_CLK_FORCE_CTL, 0x11);
+	} else if (sc->rtsx_flags & RTSX_F_5229) {
+		RTSX_BITOP(sc, RTSX_ASPM_FORCE_CTL, RTSX_ASPM_FORCE_MASK, RTSX_FORCE_ASPM_NO_ASPM);
 	} else if (sc->rtsx_flags & (RTSX_F_5229 | RTSX_F_525A)) {
 		/* from https://github.com/hackintosh-stuff/Sinetek-rtsx */
 		RTSX_WRITE(sc, RTSX_CARD_DRIVE_SEL, RTSX_RTS5229_CARD_DRIVE_DEFAULT);
@@ -1972,14 +1978,16 @@ rtsx_mmcbr_switch_vccq(device_t bus, device_t child __unused)
 			(void)rtsx_write(sc, RTSX_LDO_CTL,
 					 (RTSX_BPP_ASIC_MASK << RTSX_BPP_SHIFT_8411) | RTSX_BPP_PAD_MASK,
 					 (RTSX_BPP_ASIC_3V3 << RTSX_BPP_SHIFT_8411) | RTSX_BPP_PAD_3V3);
-			DELAY(200);
 		} else if (sc->rtsx_flags & RTSX_F_525A) {
 			(void)rtsx_write(sc, RTSX_LDO_CONFIG2, RTSX_LDO_D3318_MASK, RTSX_LDO_D3318_33V);
 			(void)rtsx_write(sc, RTSX_SD_PAD_CTL, RTSX_SD_IO_USING_1V8, 0);
-			DELAY(200);
 		} else if (sc->rtsx_flags & RTSX_F_522A) {
 			(void)rtsx_write_phy(sc, 0x08, 0x57E4);
+		} else if (sc->rtsx_flags & RTSX_F_5229) {
+			(void)rtsx_write(sc, RTSX_SD30_DRIVE_SEL, RTSX_SD30_DRIVE_SEL_MASK, RTSX_SD30_DRIVE_SEL_3V3);
+			(void)rtsx_write_phy(sc, 0x08, 0x4FE4);
 		}
+		DELAY(200);
 	}
 
 	if (bootverbose)
@@ -2264,6 +2272,10 @@ rtsx_attach(device_t dev)
 	 * Schedule a card detection as we won't get an interrupt
 	 * if the card is inserted when we attach
 	 */
+	if (rtsx_is_card_present(sc))
+		device_printf(sc->rtsx_dev, "Card present\n");
+	else
+		device_printf(sc->rtsx_dev, "Card absent\n");
 	rtsx_card_task(sc, 0);
 
 	if (bootverbose)
