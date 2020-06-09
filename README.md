@@ -55,6 +55,6 @@ TESTED ON:
 
 NOTES:
  
- - RTS522A on a lenovo P50s show a card detection problem.
+ - RTS522A on a lenovo P50s and Lenovo t470p show a card detection problem.
 
  - See https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=204521
