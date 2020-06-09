@@ -107,7 +107,7 @@ struct rtsx_softc {
 	void		*rtsx_data_dmamem;	/* DMA mem for data transfer */
 	bus_addr_t	rtsx_data_buffer;	/* device visible address of the DMA segment */
 
-	u_char		rtsx_bus_busy;		/* bus busy status */ 
+	u_char		rtsx_bus_busy;		/* bus busy status */
 	struct mmc_host rtsx_host;		/* host parameters */
 	uint32_t	rtsx_sd_clock;		/* current sd clock */
 	enum mmc_power_mode rtsx_power_mode;	/* current power mode */
@@ -762,7 +762,6 @@ rtsx_init(struct rtsx_softc *sc)
 	} else {
 		RTSX_WRITE(sc, RTSX_SD30_DRIVE_SEL, sc->rtsx_sd30_drive_sel_3v3);
 	}
-		
 
 	/* Set up LED GPIO */
 	if (sc->rtsx_flags & RTSX_F_5209) {
@@ -1135,11 +1134,18 @@ rtsx_bus_power_on(struct rtsx_softc *sc)
 		DELAY(200);
 	
 		/* Full power. */
+#if 0
 		RTSX_SET(sc, RTSX_CARD_PWR_CTL, RTSX_SD_PWR_ON);
 		if (sc->rtsx_flags & RTSX_F_5209)
 			RTSX_CLR(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_VCC1 | RTSX_LDO3318_VCC2);
 		else
 			RTSX_SET(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_VCC1 | RTSX_LDO3318_VCC2);
+#endif
+		RTSX_CLR(sc, RTSX_CARD_PWR_CTL, RTSX_SD_PWR_OFF);
+		if (sc->rtsx_flags & RTSX_F_5209)
+			RTSX_CLR(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_OFF);
+		else
+			RTSX_SET(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_VCC2);
 	}
 
 	/* Enable SD card output */
@@ -1982,19 +1988,19 @@ rtsx_mmcbr_switch_vccq(device_t bus, device_t child __unused)
 	};
 
 	if (vccq == 330) {
-		if (sc->rtsx_flags & RTSX_F_8411B) {
+		if (sc->rtsx_flags & RTSX_F_5229) {
+			(void)rtsx_write(sc, RTSX_SD30_DRIVE_SEL, RTSX_SD30_DRIVE_SEL_MASK, sc->rtsx_sd30_drive_sel_3v3);
+			(void)rtsx_write_phy(sc, 0x08, 0x4FE4);
+		} else if (sc->rtsx_flags & RTSX_F_522A) {
+			(void)rtsx_write_phy(sc, 0x08, 0x57E4);
+		} else if (sc->rtsx_flags & RTSX_F_525A) {
+			(void)rtsx_write(sc, RTSX_LDO_CONFIG2, RTSX_LDO_D3318_MASK, RTSX_LDO_D3318_33V);
+			(void)rtsx_write(sc, RTSX_SD_PAD_CTL, RTSX_SD_IO_USING_1V8, 0);
+		} else if (sc->rtsx_flags & RTSX_F_8411B) {
 			(void)rtsx_write(sc, RTSX_SD30_DRIVE_SEL, RTSX_SD30_DRIVE_SEL_MASK, sc->rtsx_sd30_drive_sel_3v3);
 			(void)rtsx_write(sc, RTSX_LDO_CTL,
 					 (RTSX_BPP_ASIC_MASK << RTSX_BPP_SHIFT_8411) | RTSX_BPP_PAD_MASK,
 					 (RTSX_BPP_ASIC_3V3 << RTSX_BPP_SHIFT_8411) | RTSX_BPP_PAD_3V3);
-		} else if (sc->rtsx_flags & RTSX_F_525A) {
-			(void)rtsx_write(sc, RTSX_LDO_CONFIG2, RTSX_LDO_D3318_MASK, RTSX_LDO_D3318_33V);
-			(void)rtsx_write(sc, RTSX_SD_PAD_CTL, RTSX_SD_IO_USING_1V8, 0);
-		} else if (sc->rtsx_flags & RTSX_F_522A) {
-			(void)rtsx_write_phy(sc, 0x08, 0x57E4);
-		} else if (sc->rtsx_flags & RTSX_F_5229) {
-			(void)rtsx_write(sc, RTSX_SD30_DRIVE_SEL, RTSX_SD30_DRIVE_SEL_MASK, sc->rtsx_sd30_drive_sel_3v3);
-			(void)rtsx_write_phy(sc, 0x08, 0x4FE4);
 		}
 		DELAY(200);
 	}
