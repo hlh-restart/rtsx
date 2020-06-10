@@ -45,15 +45,16 @@ TODO:
 
 TESTED ON:
 
- - RTS5209  under FreeBSD-13.0-CURRENT (ThinkPad L520)
- - RTS5227  under FreeBSD-11.4-STABLE, FreeBSD 12.1-RELEASE (HP Probook 430 g2, Thinkpad T450s, Thinkpad T450)
- - RTS5229  under FreeBSD 12.1-RELEASE (Lenovo ideapad 120S-14IAP)
- - RTS522A  under FreeBSD-13.0-CURRENT (Intel NUC8i5BE)
- - RTS525A  under FreeBSD-12.1-RELEASE (Dell Latitude E5570, Dell XPS 13 - model 9360)
- - RTL8411B under FreeBSD-12.1-STABLE (ACER Aspire E15 - E5-576-77W6)
+ - RTS5209 under head (Lenovo ThinkPad L520)
+ - RTS5227 under stable/11 and releng/12.1
+   (HP ProBook 430 g2, Lenovo ThinkPad T450/T450s)
+ - RTS5229 under releng/12.1 (Lenovo IdeaPad 120S-14IAP)
+ - RTS522A under releng/12.1 and head (Intel NUC8i5BE, Lenovo ThinkPad P50s)
+ - RTS525A under releng/12.1 (Dell Latitude E5570, Dell XPS 13 - model 9360)
+ - RTL8411B under stable/12 (Acer Aspire E 15 E5-576-77W6)
 
 NOTES:
  
- - RTS522A on a lenovo P50s show a card detection problem.
+ - RTS522A on a lenovo P50s and Lenovo t470p show a card detection problem.
 
  - See https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=204521
