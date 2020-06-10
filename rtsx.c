@@ -437,9 +437,11 @@ rtsx_intr(void *arg)
 		device_printf(sc->rtsx_dev, "Spurious interrupt\n");
 		RTSX_UNLOCK(sc);
 		return;
-	} else if (status & RTSX_SD_WRITE_PROTECT) {
-		sc->rtsx_read_only = 1;
 	}
+	if (status & RTSX_SD_WRITE_PROTECT)
+		sc->rtsx_read_only = 1;
+	else
+		sc->rtsx_read_only = 0;
 
 	/* start task to handle SD card status change */
 	/* from dwmmc.c */
@@ -713,7 +715,7 @@ rtsx_init(struct rtsx_softc *sc)
 	RTSX_CLR(sc, RTSX_RCCTL, RTSX_RCCTL_F_2M);
 
 	/* Enable interrupt write-clear (default is read-clear). */
-	(void)rtsx_write(sc, RTSX_NFTS_TX_CTRL, RTSX_INT_READ_CLR, 0);
+	RTSX_CLR(sc, RTSX_NFTS_TX_CTRL, RTSX_INT_READ_CLR);
 
 	/* Request clock by driving CLKREQ pin to zero. */
 	RTSX_SET(sc, RTSX_PETXCFG, RTSX_PETXCFG_CLKREQ_PIN);
@@ -990,7 +992,6 @@ static int
 rtsx_bus_power_off(struct rtsx_softc *sc)
 {
 	int error;
-	uint8_t disable3;
 
 	if (bootverbose)
 		device_printf(sc->rtsx_dev, "rtsx_bus_power_off()\n");
@@ -1002,22 +1003,24 @@ rtsx_bus_power_off(struct rtsx_softc *sc)
 	RTSX_CLR(sc, RTSX_CARD_OE, RTSX_CARD_OUTPUT_EN);
 
 	/* Turn off power. */
-	disable3 = RTSX_PULL_CTL_DISABLE3;
-	if (sc->rtsx_flags & RTSX_F_5209)
+	if (sc->rtsx_flags & RTSX_F_5209) {
+		RTSX_BITOP(sc, RTSX_CARD_PWR_CTL, RTSX_SD_PWR_MASK | RTSX_PMOS_STRG_MASK,
+			    RTSX_SD_PWR_OFF | RTSX_PMOS_STRG_400mA);
 		RTSX_SET(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_OFF);
-	else if (sc->rtsx_flags & RTSX_F_8411B) {
+	} else if (sc->rtsx_flags & RTSX_F_5229) {
+		RTSX_BITOP(sc, RTSX_CARD_PWR_CTL, RTSX_SD_PWR_MASK | RTSX_PMOS_STRG_MASK,
+			   RTSX_SD_PWR_OFF | RTSX_PMOS_STRG_400mA);
+		RTSX_CLR(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_PWR_MASK);
+	} else if (sc->rtsx_flags & RTSX_F_8411B) {
 		RTSX_BITOP(sc, RTSX_CARD_PWR_CTL, RTSX_BPP_POWER_MASK,
 			   RTSX_BPP_POWER_OFF);
 		RTSX_BITOP(sc, RTSX_LDO_CTL, RTSX_BPP_LDO_POWB,
 			   RTSX_BPP_LDO_SUSPEND);
   	} else {
 		RTSX_CLR(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_VCC1 | RTSX_LDO3318_VCC2);
-		if (sc->rtsx_flags & RTSX_F_5229_TYPE_C)
-			disable3 = RTSX_PULL_CTL_DISABLE3_TYPE_C;
+		RTSX_SET(sc, RTSX_CARD_PWR_CTL, RTSX_SD_PWR_OFF);
+		RTSX_CLR(sc, RTSX_CARD_PWR_CTL, RTSX_PMOS_STRG_800mA);
 	}
-
-	RTSX_SET(sc, RTSX_CARD_PWR_CTL, RTSX_SD_PWR_OFF);
-	RTSX_CLR(sc, RTSX_CARD_PWR_CTL, RTSX_PMOS_STRG_800mA);
 
 	/* Disable pull control. */
 	if (sc->rtsx_flags & RTSX_F_8411) {
@@ -1043,7 +1046,10 @@ rtsx_bus_power_off(struct rtsx_softc *sc)
 	} else {
 		RTSX_WRITE(sc, RTSX_CARD_PULL_CTL1, RTSX_PULL_CTL_DISABLE12);
 		RTSX_WRITE(sc, RTSX_CARD_PULL_CTL2, RTSX_PULL_CTL_DISABLE12);
-		RTSX_WRITE(sc, RTSX_CARD_PULL_CTL3, disable3);
+		if (sc->rtsx_flags & RTSX_F_5229_TYPE_C)
+			RTSX_WRITE(sc, RTSX_CARD_PULL_CTL3, RTSX_PULL_CTL_DISABLE3_TYPE_C);
+		else
+			RTSX_WRITE(sc, RTSX_CARD_PULL_CTL3, RTSX_PULL_CTL_DISABLE3);
 	}
 
 	return (0);
@@ -1052,21 +1058,9 @@ rtsx_bus_power_off(struct rtsx_softc *sc)
 static int
 rtsx_bus_power_on(struct rtsx_softc *sc)
 {
-	uint8_t enable3;
-	int error;
-
 	if (bootverbose)
 		device_printf(sc->rtsx_dev, "rtsx_bus_power_on()\n");
 	
-	if (sc->rtsx_flags & RTSX_F_525A) {
-		error = rtsx_write(sc, RTSX_LDO_VCC_CFG1, RTSX_LDO_VCC_TUNE_MASK,
-				   RTSX_LDO_VCC_3V3);
-		if (error) {
-			device_printf(sc->rtsx_dev, "Error bus power on RTSX_F_F525A");
-			return (error);
-		}
-	}
-
 	/* Select SD card. */
 	RTSX_WRITE(sc, RTSX_CARD_SELECT, RTSX_SD_MOD_SEL);
 	RTSX_WRITE(sc, RTSX_CARD_SHARE_MODE, RTSX_CARD_SHARE_48_SD);
@@ -1097,10 +1091,9 @@ rtsx_bus_power_on(struct rtsx_softc *sc)
 		RTSX_WRITE(sc, RTSX_CARD_PULL_CTL1, RTSX_PULL_CTL_ENABLE12);
 		RTSX_WRITE(sc, RTSX_CARD_PULL_CTL2, RTSX_PULL_CTL_ENABLE12);
 		if (sc->rtsx_flags & RTSX_F_5229_TYPE_C)
-			enable3 = RTSX_PULL_CTL_ENABLE3_TYPE_C;
+			RTSX_WRITE(sc, RTSX_CARD_PULL_CTL3, RTSX_PULL_CTL_ENABLE3_TYPE_C);
 		else
-			enable3 = RTSX_PULL_CTL_ENABLE3;
-		RTSX_WRITE(sc, RTSX_CARD_PULL_CTL3, enable3);
+			RTSX_WRITE(sc, RTSX_CARD_PULL_CTL3, RTSX_PULL_CTL_ENABLE3);
 	}
 
 	/*
@@ -1124,28 +1117,26 @@ rtsx_bus_power_on(struct rtsx_softc *sc)
 		RTSX_BITOP(sc, RTSX_LDO_CTL, RTSX_BPP_LDO_POWB,
 			   RTSX_BPP_LDO_ON);
 	} else {
+		if (sc->rtsx_flags & RTSX_F_525A)
+			RTSX_BITOP(sc, RTSX_LDO_VCC_CFG1, RTSX_LDO_VCC_TUNE_MASK, RTSX_LDO_VCC_3V3);
+
 		/* Partial power. */
-		RTSX_SET(sc, RTSX_CARD_PWR_CTL, RTSX_SD_PARTIAL_PWR_ON);
+		RTSX_BITOP(sc, RTSX_CARD_PWR_CTL, RTSX_SD_PWR_MASK, RTSX_SD_PARTIAL_PWR_ON);
 		if (sc->rtsx_flags & RTSX_F_5209)
-			RTSX_SET(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_SUSPEND);
+			RTSX_BITOP(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_PWR_MASK, RTSX_LDO3318_VCC2);
 		else
-			RTSX_SET(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_VCC1);
+			RTSX_BITOP(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_PWR_MASK, RTSX_LDO3318_VCC1);
 		
 		DELAY(200);
 	
 		/* Full power. */
-#if 0
-		RTSX_SET(sc, RTSX_CARD_PWR_CTL, RTSX_SD_PWR_ON);
+		RTSX_BITOP(sc, RTSX_CARD_PWR_CTL, RTSX_SD_PWR_MASK, RTSX_SD_PWR_ON);
 		if (sc->rtsx_flags & RTSX_F_5209)
-			RTSX_CLR(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_VCC1 | RTSX_LDO3318_VCC2);
+			RTSX_BITOP(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_PWR_MASK,
+				   RTSX_LDO3318_ON);
 		else
-			RTSX_SET(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_VCC1 | RTSX_LDO3318_VCC2);
-#endif
-		RTSX_CLR(sc, RTSX_CARD_PWR_CTL, RTSX_SD_PWR_OFF);
-		if (sc->rtsx_flags & RTSX_F_5209)
-			RTSX_CLR(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_OFF);
-		else
-			RTSX_SET(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_VCC2);
+			RTSX_BITOP(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_PWR_MASK,
+				   RTSX_LDO3318_VCC1 | RTSX_LDO3318_VCC2);
 	}
 
 	/* Enable SD card output */
@@ -1943,19 +1934,16 @@ rtsx_mmcbr_update_ios(device_t bus, device_t child)
 	switch (ios->power_mode) {
 	case power_off:
 		if (sc->rtsx_power_mode != power_off) {
-			rtsx_bus_power_off(sc);
+			if ((error = rtsx_bus_power_off(sc)))
+				return (error);
 			sc->rtsx_power_mode = power_off;
 		}
 		break;
 	case power_up:
-//		if (sc->rtsx_power_mode != power_up) {
-//			rtsx_bus_power_up(sc);
-//			sc->rtsx_power_mode = power_up;
-//		}
-//		break;
 	case power_on:
 		if (sc->rtsx_power_mode != power_on) {
-			rtsx_bus_power_on(sc);
+			if ((error = rtsx_bus_power_on(sc)))
+				return (error);
 			sc->rtsx_power_mode = power_on;
 		}
 		break;
