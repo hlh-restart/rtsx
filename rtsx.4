@@ -77,4 +77,9 @@ driver was ported from OpenBSD with modifications found in Linux and OpenBSD.
 .Sh CONTRIBUTORS
 .An Lutz Bichler Aq Mt Lutz.Bichler@gmail.com
 .Sh BUGS
-Must exist.
+.Bl -bullet
+.It
+Some configurations experience timeout/reset, but otherwise I/O work correctly.
+.It
+On Lenovo P50 and Lenovo T470p, card detection and read-only switch are reversed.
+.El

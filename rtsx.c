@@ -124,6 +124,7 @@ static const struct rtsx_device {
 	int		flags;	
 	const char	*desc;
 } rtsx_devices[] = {
+#ifndef RTSX_INVERTION
 	{ 0x10ec,	0x5209,	RTSX_F_5209,    "Realtek RTS5209 PCI MMC/SD Card Reader"},
 	{ 0x10ec,	0x5227,	RTSX_F_5227,	"Realtek RTS5227 PCI MMC/SD Card Reader"},
 	{ 0x10ec,	0x5229,	RTSX_F_5229,    "Realtek RTS5229 PCI MMC/SD Card Reader"},
@@ -134,6 +135,18 @@ static const struct rtsx_device {
 	{ 0x10ec,	0x5289,	RTSX_F_8411,	"Realtek RTL8411 PCI MMC/SD Card Reader"},
 	{ 0x10ec,	0x5287,	RTSX_F_8411B,	"Realtek RTL8411B PCI MMC/SD Card Reader"},
 	{ 0, 		0,	0,		NULL}
+#else
+	{ 0x10ec,	0x5209,	RTSX_F_5209,    "Realtek RTS5209! PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5227,	RTSX_F_5227,	"Realtek RTS5227! PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5229,	RTSX_F_5229,    "Realtek RTS5229! PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x522a,	RTSX_F_522A,    "Realtek RTS522A! PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x525A,	RTSX_F_525A,    "Realtek RTS525A! PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5249,	RTSX_F_5229,    "Realtek RTS5249! PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5286,	RTSX_F_DEFAULT, "Realtek RTL8402! PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5289,	RTSX_F_8411,	"Realtek RTL8411! PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5287,	RTSX_F_8411B,	"Realtek RTL8411B! PCI MMC/SD Card Reader"},
+	{ 0, 		0,	0,		NULL}
+#endif
 };
 
 static int	rtsx_dma_alloc(struct rtsx_softc *sc);
@@ -564,7 +577,11 @@ rtsx_is_card_present(struct rtsx_softc *sc)
 	uint32_t status;
 
 	status = READ4(sc, RTSX_BIPR);
+#ifndef RTSX_INVERTION
 	return (status & RTSX_SD_EXIST);
+#else
+	return !(status & RTSX_SD_EXIST);
+#endif
 }
 
 static int
@@ -676,8 +693,9 @@ rtsx_init(struct rtsx_softc *sc)
 			(void)rtsx_write_phy(sc, RTSX__PHY_REV0,
 					     RTSX__PHY_REV0_FILTER_OUT | RTSX__PHY_REV0_CDR_BYPASS_PFD |
 					     RTSX__PHY_REV0_CDR_RX_IDLE_BYPASS);
-	} else
+	} else {
 		error = 0;
+	}
 	if (error) {
 		device_printf(sc->rtsx_dev, "Can't write phy register\n");
 		return (1);
@@ -733,7 +751,6 @@ rtsx_init(struct rtsx_softc *sc)
 		RTSX_WRITE(sc, RTSX_PCLK_CTL, 0x04);
 		RTSX_WRITE(sc, RTSX_PM_EVENT_DEBUG, RTSX_PME_DEBUG_0);
 		RTSX_WRITE(sc, RTSX_PM_CLK_FORCE_CTL, 0x11);
-		RTSX_WRITE(sc, RTSX_SD30_DRIVE_SEL, sc->rtsx_sd30_drive_sel_3v3);
 	} else if (sc->rtsx_flags & RTSX_F_525A) {
 		RTSX_WRITE(sc, RTSX_PCLK_CTL, RTSX_PCLK_MODE_SEL);
 		if (sc->rtsx_flags & RTSX_F_525A_TYPE_A) {
@@ -751,8 +768,6 @@ rtsx_init(struct rtsx_softc *sc)
 			RTSX_BITOP(sc, RTSX_OOBS_CONFIG,
 				   RTSX_OOBS_AUTOK_DIS | RTSX_OOBS_VAL_MASK, 0x89);
 		}
-		/* from https://github.com/hackintosh-stuff/Sinetek-rtsx */
-		RTSX_WRITE(sc, RTSX_CARD_DRIVE_SEL, sc->rtsx_card_drive_sel);
 	} else 	if (sc->rtsx_flags & RTSX_F_8411B) {
 		if (sc->rtsx_flags & RTSX_F_8411B_QFN48)
 			RTSX_WRITE(sc, RTSX_CARD_PULL_CTL3, 0xf5);
@@ -2013,6 +2028,7 @@ rtsx_mmcbr_tune(device_t bus, device_t child __unused, bool hs400 __unused)
 		device_printf(sc->rtsx_dev, "rtsx_mmcbr_tune()\n");
 
 	sc->rtsx_host.ios.clock = RTSX_SDCLK_50MHZ;
+
 	return (0);
 
 }
@@ -2101,11 +2117,11 @@ rtsx_mmcbr_get_ro(device_t bus, device_t child __unused)
 
 	sc = device_get_softc(bus);
 
-	if (bootverbose)
-		device_printf(sc->rtsx_dev, "rtsx_mmcbr_get_ro() - %s\n", sc->rtsx_read_only ? "RO" : "RW");
-
+#ifndef RTSX_INVERTION
 	return (sc->rtsx_read_only);
-
+#else
+	return !(sc->rtsx_read_only);
+#endif	
 }
 
 static int

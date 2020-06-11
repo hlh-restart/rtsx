@@ -25,7 +25,7 @@ kldload rtsx
 
 sysctl debug.bootverbose=1 for debugging
 
-WHAT WORKS:
+HISTORY:
 
  - probe of Vendor ID: 0x10ec - Device ID: 0x5287
  - attach (and dev initialization...)
@@ -37,11 +37,11 @@ WHAT WORKS:
  - Patch to allow successful read operations (from Jesper Schmitz Mouridsen <jsm@FreeBSD.org>)
  - write operation completed with Jesper Schmitz Mouridsen <jsm@FreeBSD.org>.
  - patch for RTS525A from Lutz Bichler <Lutz.Bichler@gmail.com>
+ - add read-only detection
 
 TODO:
 
  - Implement sleep and resume
- - Test... test.... test... and more tests
 
 TESTED ON:
 
@@ -51,10 +51,15 @@ TESTED ON:
  - RTS5229 under releng/12.1 (Lenovo IdeaPad 120S-14IAP)
  - RTS522A under releng/12.1 and head (Intel NUC8i5BE, Lenovo ThinkPad P50s)
  - RTS525A under releng/12.1 (Dell Latitude E5570, Dell XPS 13 - model 9360)
- - RTL8411B under stable/12 (Acer Aspire E 15 E5-576-77W6)
+ - RTL8411B under stable/12 and head
+   (Acer Aspire E 15 E5-576-77W6, ACER ASPIRE 5 A515-51G-C97B)
 
-NOTES:
+KNOWN BUGS:
+
+ - Some configurations experience timeout/reset, but otherwise I/O work correctly.
+ - On Lenovo P50 and Lenovo T470p, card detection and read-only switch are reversed.
+   To adapt the driver: make -D RTSX_INVERTION.
+
+NOTE:
  
- - RTS522A on a lenovo P50s and Lenovo t470p show a card detection problem.
-
  - See https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=204521
