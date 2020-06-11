@@ -57,9 +57,6 @@ __FBSDID("$FreeBSD$");
 
 #include "rtsxreg.h"
 
-#define RTSX_NREG ((0XFDAE - 0XFDA0) + (0xFD69 - 0xFD32) + (0xFE34 - 0xFE20))
-#define SDMMC_MAXNSEGS	((MAXPHYS / PAGE_SIZE) + 1)
-
 /* flag values */
 #define	RTSX_F_DEFAULT		0x0000
 #define	RTSX_F_CARD_PRESENT	0x0001
@@ -75,6 +72,9 @@ __FBSDID("$FreeBSD$");
 #define RTSX_F_8411		0x0400
 #define RTSX_F_8411B		0x0800
 #define RTSX_F_8411B_QFN48	0x1000
+
+#define RTSX_NREG ((0xFDB9 - 0xFDA0) + (0xFD6F - 0xFD50) + (0xFE47 - 0xFE20))
+#define SDMMC_MAXNSEGS	((MAXPHYS / PAGE_SIZE) + 1)
 
 /* The softc holds our per-instance data. */
 struct rtsx_softc {
@@ -226,9 +226,6 @@ static int	rtsx_mmcbr_release_host(device_t bus, device_t child __unused);
 #define	RTSX_HOSTCMD_BUFSIZE	(sizeof(uint32_t) * RTSX_HOSTCMD_MAX)
 #define	RTSX_DMA_DATA_BUFSIZE	MAXPHYS
 #define	RTSX_ADMA_DESC_SIZE	(sizeof(uint64_t) * SDMMC_MAXNSEGS)
-
-#define RTSX_NREG ((0XFDAE - 0XFDA0) + (0xFD69 - 0xFD32) + (0xFE34 - 0xFE20))
-#define SDMMC_MAXNSEGS	((MAXPHYS / PAGE_SIZE) + 1)
 
 #define ISSET(t, f) ((t) & (f))
 
@@ -706,14 +703,14 @@ rtsx_init(struct rtsx_softc *sc)
 
 	/* Disable sleep mode. */
 	RTSX_CLR(sc, RTSX_HOST_SLEEP_STATE,
-	    RTSX_HOST_ENTER_S1 | RTSX_HOST_ENTER_S3);
+		 RTSX_HOST_ENTER_S1 | RTSX_HOST_ENTER_S3);
 
 	/* Disable card clock. */
 	RTSX_CLR(sc, RTSX_CARD_CLK_EN, RTSX_CARD_CLK_EN_ALL);
 
 	/* Reset delink mode */
 	RTSX_CLR(sc, RTSX_CHANGE_LINK_STATE,
-	    RTSX_FORCE_RST_CORE_EN | RTSX_NON_STICKY_RST_N_DBG | 0x04);
+		 RTSX_FORCE_RST_CORE_EN | RTSX_NON_STICKY_RST_N_DBG | 0x04);
 
 	/* Enable SSC clock. */
 	RTSX_WRITE(sc, RTSX_SSC_CTL1, RTSX_SSC_8X_EN | RTSX_SSC_SEL_4M);
@@ -731,9 +728,6 @@ rtsx_init(struct rtsx_softc *sc)
 
 	/* Set RC oscillator to 400K. */
 	RTSX_CLR(sc, RTSX_RCCTL, RTSX_RCCTL_F_2M);
-
-	/* Enable interrupt write-clear (default is read-clear). */
-	RTSX_CLR(sc, RTSX_NFTS_TX_CTRL, RTSX_INT_READ_CLR);
 
 	/* Request clock by driving CLKREQ pin to zero. */
 	RTSX_SET(sc, RTSX_PETXCFG, RTSX_PETXCFG_CLKREQ_PIN);
@@ -824,8 +818,8 @@ rtsx_read(struct rtsx_softc *sc, uint16_t addr, uint8_t *val)
 		if (!(reg & RTSX_HAIMR_BUSY))
 			break;
 	}
-
 	*val = (reg & 0xff);
+
 	return (tries == 0) ? ETIMEDOUT : 0;
 }
 
@@ -1363,7 +1357,7 @@ rtsx_soft_reset(struct rtsx_softc *sc)
 
 	/* Clear error. */
 	(void)rtsx_write(sc, RTSX_CARD_STOP, RTSX_SD_STOP|RTSX_SD_CLR_ERR,
-		    RTSX_SD_STOP|RTSX_SD_CLR_ERR);
+			 RTSX_SD_STOP|RTSX_SD_CLR_ERR);
 }
 
 static int
@@ -2368,9 +2362,34 @@ rtsx_shutdown(device_t dev)
 static int
 rtsx_suspend(device_t dev)
 {
+	struct rtsx_softc *sc = device_get_softc(dev);
+	int i;
+	uint16_t reg;
 
 	if (bootverbose)
 		device_printf(dev, "Suspend\n");
+
+	bus_generic_suspend(dev);
+
+	RTSX_LOCK(sc);
+
+	i = 0;
+	for (reg = 0xFDA0; reg < 0xFDB9; reg++)
+		(void)rtsx_read(sc, reg, &sc->regs[i++]);
+	for (reg = 0xFD50; reg < 0xFD6E; reg++)
+		(void)rtsx_read(sc, reg, &sc->regs[i++]);
+	for (reg = 0xFE20; reg < 0xFE47; reg++)
+		(void)rtsx_read(sc, reg, &sc->regs[i++]);
+
+	sc->regs4[0] = READ4(sc, RTSX_HCBAR);
+	sc->regs4[1] = READ4(sc, RTSX_HCBCTLR);
+	sc->regs4[2] = READ4(sc, RTSX_HDBAR);
+	sc->regs4[3] = READ4(sc, RTSX_HDBCTLR);
+	sc->regs4[4] = READ4(sc, RTSX_HAIMR);
+	sc->regs4[5] = READ4(sc, RTSX_BIER);
+	/* Not saving RTSX_BIPR. */
+
+	RTSX_UNLOCK(sc);
 	
 	return (0);
 }
@@ -2382,9 +2401,35 @@ static int
 rtsx_resume(device_t dev)
 {
 
+	struct rtsx_softc *sc = device_get_softc(dev);
+	int i;
+	uint16_t reg;
+
 	if (bootverbose)
 		device_printf(dev, "Resume\n");
-	
+
+	RTSX_LOCK(sc);
+
+	WRITE4(sc, RTSX_HCBAR, sc->regs4[0]);
+	WRITE4(sc, RTSX_HCBCTLR, sc->regs4[1]);
+	WRITE4(sc, RTSX_HDBAR, sc->regs4[2]);
+	WRITE4(sc, RTSX_HDBCTLR, sc->regs4[3]);
+	WRITE4(sc, RTSX_HAIMR, sc->regs4[4]);
+	WRITE4(sc, RTSX_BIER, sc->regs4[5]);
+	/* Not writing RTSX_BIPR since doing so would clear it. */
+
+	i = 0;
+	for (reg = 0xFDA0; reg < 0xFDB9; reg++)
+		(void)rtsx_write(sc, reg, 0xff, sc->regs[i++]);
+	for (reg = 0xFD50; reg < 0xFD6F; reg++)
+		(void)rtsx_write(sc, reg, 0xff, sc->regs[i++]);
+	for (reg = 0xFE20; reg < 0xFE47; reg++)
+		(void)rtsx_write(sc, reg, 0xff, sc->regs[i++]);
+
+	RTSX_UNLOCK(sc);
+
+	bus_generic_resume(dev);
+
 	return (0);
 }
 
