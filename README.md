@@ -58,7 +58,7 @@ KNOWN BUGS:
 
  - Some configurations experience timeout/reset, but otherwise I/O work correctly.
  - On Lenovo P50 and Lenovo T470p, card detection and read-only switch are reversed.
-   To adapt the driver: make -D RTSX_INVERTION.
+   To adapt the driver: make -D RTSX_INVERSION.
 
 NOTE:
  

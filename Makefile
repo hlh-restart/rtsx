@@ -1,7 +1,7 @@
 # Makefile for rtsx driver
 # CFLAGS="-ferror-limit=0"
-.if RTSX_INVERTION
-CFLAGS+= -DRTSX_INVERTION
+.if RTSX_INVERSION
+CFLAGS+= -DRTSX_INVERSION
 .endif
 KMOD=	rtsx
 SRCS=	rtsx.c

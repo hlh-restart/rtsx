@@ -124,7 +124,7 @@ static const struct rtsx_device {
 	int		flags;	
 	const char	*desc;
 } rtsx_devices[] = {
-#ifndef RTSX_INVERTION
+#ifndef RTSX_INVERSION
 	{ 0x10ec,	0x5209,	RTSX_F_5209,    "Realtek RTS5209 PCI MMC/SD Card Reader"},
 	{ 0x10ec,	0x5227,	RTSX_F_5227,	"Realtek RTS5227 PCI MMC/SD Card Reader"},
 	{ 0x10ec,	0x5229,	RTSX_F_5229,    "Realtek RTS5229 PCI MMC/SD Card Reader"},
@@ -577,7 +577,7 @@ rtsx_is_card_present(struct rtsx_softc *sc)
 	uint32_t status;
 
 	status = READ4(sc, RTSX_BIPR);
-#ifndef RTSX_INVERTION
+#ifndef RTSX_INVERSION
 	return (status & RTSX_SD_EXIST);
 #else
 	return !(status & RTSX_SD_EXIST);
@@ -2117,7 +2117,7 @@ rtsx_mmcbr_get_ro(device_t bus, device_t child __unused)
 
 	sc = device_get_softc(bus);
 
-#ifndef RTSX_INVERTION
+#ifndef RTSX_INVERSION
 	return (sc->rtsx_read_only);
 #else
 	return !(sc->rtsx_read_only);
