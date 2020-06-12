@@ -41,7 +41,7 @@ HISTORY:
 
 TODO:
 
- - Implement sleep and resume
+ - Implement suspend and resume
 
 TESTED ON:
 

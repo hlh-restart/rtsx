@@ -65,16 +65,16 @@ __FBSDID("$FreeBSD$");
 #define	RTSX_F_5227		0x0008
 #define	RTSX_F_5229		0x0010
 #define	RTSX_F_5229_TYPE_C	0x0020
-#define RTSX_F_522A		0x0040
-#define RTSX_F_522A_TYPE_A	0x0080
-#define RTSX_F_525A		0x0100
-#define RTSX_F_525A_TYPE_A	0x0200
-#define RTSX_F_8411		0x0400
-#define RTSX_F_8411B		0x0800
-#define RTSX_F_8411B_QFN48	0x1000
+#define	RTSX_F_522A		0x0040
+#define	RTSX_F_522A_TYPE_A	0x0080
+#define	RTSX_F_525A		0x0100
+#define	RTSX_F_525A_TYPE_A	0x0200
+#define	RTSX_F_8411		0x0400
+#define	RTSX_F_8411B		0x0800
+#define	RTSX_F_8411B_QFN48	0x1000
 
-#define RTSX_NREG ((0xFDB9 - 0xFDA0) + (0xFD6F - 0xFD50) + (0xFE47 - 0xFE20))
-#define SDMMC_MAXNSEGS	((MAXPHYS / PAGE_SIZE) + 1)
+#define	RTSX_NREG ((0xFDAE - 0xFDA0) + (0xFD69 - 0xFD52) + (0xFE34 - 0xFE20))
+#define	SDMMC_MAXNSEGS	((MAXPHYS / PAGE_SIZE) + 1)
 
 /* The softc holds our per-instance data. */
 struct rtsx_softc {
@@ -86,6 +86,8 @@ struct rtsx_softc {
 	device_t	rtsx_mmc_dev;		/* device of mmc bus */
 	struct task	rtsx_card_task;		/* card presence check task */
 	struct timeout_task rtsx_delayed_task;	/* card insert delayed task */
+	uint32_t 	rtsx_intr_status;	/* soft interrupt status */
+	u_char		rtsx_read_only;		/* card read only status */
 	int		rtsx_irq_res_id;	/* bus IRQ resource id */
 	struct resource *rtsx_irq_res;		/* bus IRQ resource */
 	void		*rtsx_irq_cookie;	/* bus IRQ resource cookie */
@@ -111,8 +113,6 @@ struct rtsx_softc {
 	struct mmc_host rtsx_host;		/* host parameters */
 	uint32_t	rtsx_sd_clock;		/* current sd clock */
 	enum mmc_power_mode rtsx_power_mode;	/* current power mode */
-	uint32_t 	rtsx_intr_status;	/* soft interrupt status */
-	u_char		rtsx_read_only;		/* card read only status */
 	struct mmc_request *rtsx_req;		/* MMC request */
 	uint8_t		regs[RTSX_NREG];	/* host controller state */
 	uint32_t	regs4[6];		/* host controller state */
@@ -205,21 +205,21 @@ static int	rtsx_mmcbr_get_ro(device_t bus, device_t child __unused);
 static int	rtsx_mmcbr_acquire_host(device_t bus, device_t child __unused);
 static int	rtsx_mmcbr_release_host(device_t bus, device_t child __unused);
 
-#define RTSX_LOCK_INIT(_sc)	mtx_init(&(_sc)->rtsx_mtx,	\
+#define	RTSX_LOCK_INIT(_sc)	mtx_init(&(_sc)->rtsx_mtx,	\
 					 device_get_nameunit(sc->rtsx_dev), "rtsx", MTX_DEF)
-#define RTSX_LOCK(_sc)		mtx_lock(&(_sc)->rtsx_mtx)
-#define RTSX_UNLOCK(_sc)	mtx_unlock(&(_sc)->rtsx_mtx)
-#define RTSX_LOCK_DESTROY(_sc)	mtx_destroy(&(_sc)->rtsx_mtx)
+#define	RTSX_LOCK(_sc)		mtx_lock(&(_sc)->rtsx_mtx)
+#define	RTSX_UNLOCK(_sc)	mtx_unlock(&(_sc)->rtsx_mtx)
+#define	RTSX_LOCK_DESTROY(_sc)	mtx_destroy(&(_sc)->rtsx_mtx)
 
-#define RTSX_SDCLK_OFF		0
-#define RTSX_SDCLK_400KHZ	400000
-#define RTSX_SDCLK_25MHZ	25000000
-#define RTSX_SDCLK_50MHZ	50000000
+#define	RTSX_SDCLK_OFF		0
+#define	RTSX_SDCLK_400KHZ	400000
+#define	RTSX_SDCLK_25MHZ	25000000
+#define	RTSX_SDCLK_50MHZ	50000000
 
-#define RTSX_MAX_DATA_BLKLEN	512
+#define	RTSX_MAX_DATA_BLKLEN	512
 
-#define RTSX_DMA_ALIGN		4
-#define RTSX_DMA_BLOCK_SIZE	4096
+#define	RTSX_DMA_ALIGN		4
+#define	RTSX_DMA_BLOCK_SIZE	4096
 
 #define	RTSX_DMA_MAX_SEGSIZE	0x80000
 #define	RTSX_HOSTCMD_MAX	256
@@ -227,11 +227,11 @@ static int	rtsx_mmcbr_release_host(device_t bus, device_t child __unused);
 #define	RTSX_DMA_DATA_BUFSIZE	MAXPHYS
 #define	RTSX_ADMA_DESC_SIZE	(sizeof(uint64_t) * SDMMC_MAXNSEGS)
 
-#define ISSET(t, f) ((t) & (f))
+#define	ISSET(t, f) ((t) & (f))
 
-#define READ4(sc, reg)						\
+#define	READ4(sc, reg)						\
 	(bus_space_read_4((sc)->rtsx_btag, (sc)->rtsx_bhandle, (reg)))
-#define WRITE4(sc, reg, val)					\
+#define	WRITE4(sc, reg, val)					\
 	(bus_space_write_4((sc)->rtsx_btag, (sc)->rtsx_bhandle, (reg), (val)))
 
 #define	RTSX_READ(sc, reg, val) 				\
@@ -261,7 +261,7 @@ static int	rtsx_mmcbr_release_host(device_t bus, device_t child __unused);
 			return (err);				\
 	} while (0)
 
-#define RTSX_BITOP(sc, reg, mask, bits)				\
+#define	RTSX_BITOP(sc, reg, mask, bits)				\
 	do {							\
         	int err = rtsx_write((sc), (reg), (mask), (bits));\
 		if (err)					\
@@ -476,7 +476,7 @@ rtsx_wait_intr(struct rtsx_softc *sc, int mask, int timeout)
 	int status;
 	int error = 0;
 
-	mask |= RTSX_TRANS_FAIL_INT;
+	mask |= RTSX_TRANS_FAIL_INT | RTSX_SUSPEND_REQ;
 
 	status = sc->rtsx_intr_status & mask;
 	while (status == 0) {
@@ -488,14 +488,24 @@ rtsx_wait_intr(struct rtsx_softc *sc, int mask, int timeout)
 		}
 		status = sc->rtsx_intr_status & mask;
 	}
+
+	RTSX_LOCK(sc);
+
 	sc->rtsx_intr_status &= ~status;
 
 	/* Has the card disappeared? */
 	if (!ISSET(sc->rtsx_flags, RTSX_F_CARD_PRESENT))
 		error = MMC_ERR_NO_MEMORY;
 
+	/* Does transfer fail? */
 	if (error == 0 && (status & RTSX_TRANS_FAIL_INT))
 		error = MMC_ERR_FAILED;
+
+	/* Does sustend requested? */
+	if (error == 0 && (status & RTSX_SUSPEND_REQ))
+		error = MMC_ERR_TIMEOUT;
+
+	RTSX_UNLOCK(sc);
 
 	return (error);
 }
@@ -1254,14 +1264,6 @@ rtsx_push_cmd(struct rtsx_softc *sc, uint8_t cmd, uint16_t reg,
 		((uint32_t)(reg & 0x3fff) << 16) |
 		((uint32_t)(mask) << 8) |
 		((uint32_t)data);
-
-	/*---
-	if (bootverbose && sc->rtsx_cmd_index < 33)
-		device_printf(sc->rtsx_dev, "cmd_buffer[%02d] = 0x%08x\n",
-			      sc->rtsx_cmd_index - 1,
-			      cmd_buffer[sc->rtsx_cmd_index - 1]);
-	---*/
-
 }
 
 /*
@@ -2366,19 +2368,27 @@ rtsx_suspend(device_t dev)
 	int i;
 	uint16_t reg;
 
-	if (bootverbose)
+//	if (bootverbose)
 		device_printf(dev, "Suspend\n");
+
+	if (sc->rtsx_req != NULL) {
+		sc->rtsx_intr_status |= RTSX_SUSPEND_REQ;
+		device_printf(dev, "Request in progress: CMD%u, intr_status=0x%08x\n",
+			      sc->rtsx_req->cmd->opcode, sc->rtsx_intr_status);
+		wakeup(&sc->rtsx_intr_status);
+		DELAY(200);
+	}
 
 	bus_generic_suspend(dev);
 
 	RTSX_LOCK(sc);
 
 	i = 0;
-	for (reg = 0xFDA0; reg < 0xFDB9; reg++)
+	for (reg = 0xFDA0; reg < 0xFDAE; reg++)
 		(void)rtsx_read(sc, reg, &sc->regs[i++]);
-	for (reg = 0xFD50; reg < 0xFD6E; reg++)
+	for (reg = 0xFD52; reg < 0xFD69; reg++)
 		(void)rtsx_read(sc, reg, &sc->regs[i++]);
-	for (reg = 0xFE20; reg < 0xFE47; reg++)
+	for (reg = 0xFE20; reg < 0xFE34; reg++)
 		(void)rtsx_read(sc, reg, &sc->regs[i++]);
 
 	sc->regs4[0] = READ4(sc, RTSX_HCBAR);
@@ -2390,7 +2400,7 @@ rtsx_suspend(device_t dev)
 	/* Not saving RTSX_BIPR. */
 
 	RTSX_UNLOCK(sc);
-	
+
 	return (0);
 }
 
@@ -2400,12 +2410,11 @@ rtsx_suspend(device_t dev)
 static int
 rtsx_resume(device_t dev)
 {
-
 	struct rtsx_softc *sc = device_get_softc(dev);
 	int i;
 	uint16_t reg;
 
-	if (bootverbose)
+//	if (bootverbose)
 		device_printf(dev, "Resume\n");
 
 	RTSX_LOCK(sc);
@@ -2419,11 +2428,11 @@ rtsx_resume(device_t dev)
 	/* Not writing RTSX_BIPR since doing so would clear it. */
 
 	i = 0;
-	for (reg = 0xFDA0; reg < 0xFDB9; reg++)
+	for (reg = 0xFDA0; reg < 0xFDAE; reg++)
 		(void)rtsx_write(sc, reg, 0xff, sc->regs[i++]);
-	for (reg = 0xFD50; reg < 0xFD6F; reg++)
+	for (reg = 0xFD52; reg < 0xFD69; reg++)
 		(void)rtsx_write(sc, reg, 0xff, sc->regs[i++]);
-	for (reg = 0xFE20; reg < 0xFE47; reg++)
+	for (reg = 0xFE20; reg < 0xFE34; reg++)
 		(void)rtsx_write(sc, reg, 0xff, sc->regs[i++]);
 
 	RTSX_UNLOCK(sc);
