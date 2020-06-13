@@ -114,8 +114,6 @@ struct rtsx_softc {
 	uint32_t	rtsx_sd_clock;		/* current sd clock */
 	enum mmc_power_mode rtsx_power_mode;	/* current power mode */
 	struct mmc_request *rtsx_req;		/* MMC request */
-	uint8_t		regs[RTSX_NREG];	/* host controller state */
-	uint32_t	regs4[6];		/* host controller state */
 };
 
 static const struct rtsx_device {
@@ -476,7 +474,7 @@ rtsx_wait_intr(struct rtsx_softc *sc, int mask, int timeout)
 	int status;
 	int error = 0;
 
-	mask |= RTSX_TRANS_FAIL_INT | RTSX_SUSPEND_REQ;
+	mask |= RTSX_TRANS_FAIL_INT;
 
 	status = sc->rtsx_intr_status & mask;
 	while (status == 0) {
@@ -500,10 +498,6 @@ rtsx_wait_intr(struct rtsx_softc *sc, int mask, int timeout)
 	/* Does transfer fail? */
 	if (error == 0 && (status & RTSX_TRANS_FAIL_INT))
 		error = MMC_ERR_FAILED;
-
-	/* Does sustend requested? */
-	if (error == 0 && (status & RTSX_SUSPEND_REQ))
-		error = MMC_ERR_TIMEOUT;
 
 	RTSX_UNLOCK(sc);
 
@@ -2365,41 +2359,16 @@ static int
 rtsx_suspend(device_t dev)
 {
 	struct rtsx_softc *sc = device_get_softc(dev);
-	int i;
-	uint16_t reg;
 
 //	if (bootverbose)
 		device_printf(dev, "Suspend\n");
 
 	if (sc->rtsx_req != NULL) {
-		sc->rtsx_intr_status |= RTSX_SUSPEND_REQ;
-		device_printf(dev, "Request in progress: CMD%u, intr_status=0x%08x\n",
+		device_printf(dev, "Request in progress: CMD%u, rtsr_status=0x%08x\n",
 			      sc->rtsx_req->cmd->opcode, sc->rtsx_intr_status);
-		wakeup(&sc->rtsx_intr_status);
-		DELAY(200);
 	}
 
 	bus_generic_suspend(dev);
-
-	RTSX_LOCK(sc);
-
-	i = 0;
-	for (reg = 0xFDA0; reg < 0xFDAE; reg++)
-		(void)rtsx_read(sc, reg, &sc->regs[i++]);
-	for (reg = 0xFD52; reg < 0xFD69; reg++)
-		(void)rtsx_read(sc, reg, &sc->regs[i++]);
-	for (reg = 0xFE20; reg < 0xFE34; reg++)
-		(void)rtsx_read(sc, reg, &sc->regs[i++]);
-
-	sc->regs4[0] = READ4(sc, RTSX_HCBAR);
-	sc->regs4[1] = READ4(sc, RTSX_HCBCTLR);
-	sc->regs4[2] = READ4(sc, RTSX_HDBAR);
-	sc->regs4[3] = READ4(sc, RTSX_HDBCTLR);
-	sc->regs4[4] = READ4(sc, RTSX_HAIMR);
-	sc->regs4[5] = READ4(sc, RTSX_BIER);
-	/* Not saving RTSX_BIPR. */
-
-	RTSX_UNLOCK(sc);
 
 	return (0);
 }
@@ -2410,32 +2379,8 @@ rtsx_suspend(device_t dev)
 static int
 rtsx_resume(device_t dev)
 {
-	struct rtsx_softc *sc = device_get_softc(dev);
-	int i;
-	uint16_t reg;
-
 //	if (bootverbose)
 		device_printf(dev, "Resume\n");
-
-	RTSX_LOCK(sc);
-
-	WRITE4(sc, RTSX_HCBAR, sc->regs4[0]);
-	WRITE4(sc, RTSX_HCBCTLR, sc->regs4[1]);
-	WRITE4(sc, RTSX_HDBAR, sc->regs4[2]);
-	WRITE4(sc, RTSX_HDBCTLR, sc->regs4[3]);
-	WRITE4(sc, RTSX_HAIMR, sc->regs4[4]);
-	WRITE4(sc, RTSX_BIER, sc->regs4[5]);
-	/* Not writing RTSX_BIPR since doing so would clear it. */
-
-	i = 0;
-	for (reg = 0xFDA0; reg < 0xFDAE; reg++)
-		(void)rtsx_write(sc, reg, 0xff, sc->regs[i++]);
-	for (reg = 0xFD52; reg < 0xFD69; reg++)
-		(void)rtsx_write(sc, reg, 0xff, sc->regs[i++]);
-	for (reg = 0xFE20; reg < 0xFE34; reg++)
-		(void)rtsx_write(sc, reg, 0xff, sc->regs[i++]);
-
-	RTSX_UNLOCK(sc);
 
 	bus_generic_resume(dev);
 

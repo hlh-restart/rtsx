@@ -62,7 +62,6 @@
 #define	RTSX_SD_EXIST		(1U << 16)
 #define	RTSX_CARD_EXIST		(RTSX_XD_EXIST|RTSX_MS_EXIST|RTSX_SD_EXIST)
 #define	RTSX_CARD_INT		(RTSX_XD_INT|RTSX_MS_INT|RTSX_SD_INT)
-#define	RTSX_SUSPEND_REQ	1U
 
 /* Chip register access. */
 #define	RTSX_HAIMR		0x10
