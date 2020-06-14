@@ -1518,11 +1518,11 @@ rtsx_xfer_short(struct rtsx_softc *sc, struct mmc_command *cmd)
 	if (bootverbose)
 		device_printf(sc->rtsx_dev, "rtsx_xfer_short() - %s xfer: %ld bytes with block size %ld\n",
 			      read ? "Read" : "Write",
-			      cmd->data->len, cmd->data->xfer_len);
+			      (unsigned long)cmd->data->len, (unsigned long)cmd->data->xfer_len);
 
 	if (cmd->data->len > 512) {
 		device_printf(sc->rtsx_dev, "rtsx_xfer_short() length too large: %ld > 512\n",
-			      cmd->data->len);
+			      (unsigned long)cmd->data->len);
 		cmd->error = MMC_ERR_FAILED;
 		return ENOMEM;
 	}
@@ -1712,11 +1712,11 @@ rtsx_xfer(struct rtsx_softc *sc, struct mmc_command *cmd)
 	if (bootverbose)
 		device_printf(sc->rtsx_dev, "rtsx_xfer() - %s xfer: %ld bytes with block size %ld\n",
 			      read ? "Read" : "Write",
-			      cmd->data->len, cmd->data->xfer_len);
+			      (unsigned long)cmd->data->len, (unsigned long)cmd->data->xfer_len);
 
 	if (cmd->data->len > RTSX_DMA_DATA_BUFSIZE) {
 		device_printf(sc->rtsx_dev, "rtsx_xfer() length too large: %ld > %d\n",
-			      cmd->data->len, RTSX_DMA_DATA_BUFSIZE);
+			      (unsigned long)cmd->data->len, RTSX_DMA_DATA_BUFSIZE);
 		cmd->error = MMC_ERR_FAILED;
 		return ENOMEM;
 	}
