@@ -45,7 +45,7 @@ TODO:
 
 TESTED ON:
 
- - RTS5209 under head (Lenovo ThinkPad L520)
+ - RTS5209 under head (Lenovo ThinkPad L520, Packard Bell EN LV44HC i3-2328M)
  - RTS5227 under stable/11 and releng/12.1
    (HP ProBook 430 g2, Lenovo ThinkPad T450/T450s/X270, Fujitsu H730)
  - RTS5229 under releng/12.1 (Lenovo IdeaPad 120S-14IAP)
