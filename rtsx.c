@@ -1420,6 +1420,12 @@ rtsx_send_req_get_resp(struct rtsx_softc *sc, struct mmc_command *cmd) {
 		return (EINVAL);
 	}
 
+//	rtsx_set_sd_clock(sc, sc->rtsx_sd_clock);
+
+	/* Select SD card. */
+	RTSX_WRITE(sc, RTSX_CARD_SELECT, RTSX_SD_MOD_SEL);
+	RTSX_WRITE(sc, RTSX_CARD_SHARE_MODE, RTSX_CARD_SHARE_48_SD);
+
 	rtsx_init_cmd(sc, cmd);
 
 	/* Queue command to set response type */
