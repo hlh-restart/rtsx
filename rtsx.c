@@ -266,7 +266,7 @@ static int	rtsx_mmcbr_release_host(device_t bus, device_t child __unused);
 	do {							\
         	int err = rtsx_write((sc), (reg), (mask), (bits));\
 		if (err)					\
-			return err;				\
+			return (err);				\
 	} while (0)
 
 /* 
@@ -370,7 +370,7 @@ rtsx_dma_alloc(struct rtsx_softc *sc) {
 		goto destroy_data_dmamem_alloc;
         }
 	return (error);
-	
+
  destroy_data_dmamem_alloc:
 	bus_dmamem_free(sc->rtsx_data_dma_tag, sc->rtsx_data_dmamem, sc->rtsx_data_dmamap);
  destroy_data_dma_tag:
@@ -632,7 +632,7 @@ rtsx_init(struct rtsx_softc *sc)
 			break;
 		default:
 			device_printf(sc->rtsx_dev, "RTSX_F_5229 unknown ic version 0x%x\n", version);
-			return (1);
+			return (-1);
 		}
 		reg = pci_read_config(sc->rtsx_dev, RTSX_PCR_SETTING_REG1, 4);
 		sc->rtsx_card_drive_sel &= 0x3F;
@@ -726,7 +726,7 @@ rtsx_init(struct rtsx_softc *sc)
 	}
 	if (error) {
 		device_printf(sc->rtsx_dev, "Can't write phy register\n");
-		return (1);
+		return (-1);
 	}
 
 	/* Set mcu_cnt to 7 to ensure data can be sampled properly */
@@ -854,7 +854,7 @@ rtsx_map_sd_drive(int index)
 		 0x05,	/* Type A */
 		 0x03	/* Type B */
 		};
-	return sd_drive[index];
+	return (sd_drive[index]);
 }
 
 static int
@@ -862,7 +862,7 @@ rtsx_read(struct rtsx_softc *sc, uint16_t addr, uint8_t *val)
 {
 	int tries = 1024;
 	uint32_t reg;
-	
+
 	WRITE4(sc, RTSX_HAIMR, RTSX_HAIMR_BUSY |
 	    (uint32_t)((addr & 0x3FFF) << 16));
 
@@ -873,7 +873,7 @@ rtsx_read(struct rtsx_softc *sc, uint16_t addr, uint8_t *val)
 	}
 	*val = (reg & 0xff);
 
-	return (tries == 0) ? ETIMEDOUT : 0;
+	return ((tries == 0) ? ETIMEDOUT : 0);
 }
 
 static int
@@ -893,8 +893,8 @@ rtsx_read_cfg(struct rtsx_softc *sc, uint8_t func, uint16_t addr, uint32_t *val)
 	}
 
 	if (tries == 0)
-		return (EIO);
-	
+		return (ETIMEDOUT);
+
 	RTSX_READ(sc, RTSX_CFGDATA0, &data0);
 	RTSX_READ(sc, RTSX_CFGDATA1, &data1);
 	RTSX_READ(sc, RTSX_CFGDATA2, &data2);
@@ -910,7 +910,7 @@ rtsx_write(struct rtsx_softc *sc, uint16_t addr, uint8_t mask, uint8_t val)
 {
 	int tries = 1024;
 	uint32_t reg;
-	
+
 	WRITE4(sc, RTSX_HAIMR,
 	    RTSX_HAIMR_BUSY | RTSX_HAIMR_WRITE |
 	    (uint32_t)(((addr & 0x3FFF) << 16) |
@@ -931,7 +931,7 @@ rtsx_write(struct rtsx_softc *sc, uint16_t addr, uint8_t mask, uint8_t val)
 static int
 rtsx_write_phy(struct rtsx_softc *sc, uint8_t addr, uint16_t val)
 {
-	int timeout = 100000;
+	int tries = 100000;
 	uint8_t rwctl;
 
 	RTSX_WRITE(sc, RTSX_PHY_DATA0, val);
@@ -939,16 +939,13 @@ rtsx_write_phy(struct rtsx_softc *sc, uint8_t addr, uint16_t val)
 	RTSX_WRITE(sc, RTSX_PHY_ADDR, addr);
 	RTSX_WRITE(sc, RTSX_PHY_RWCTL, RTSX_PHY_BUSY|RTSX_PHY_WRITE);
 
-	while (timeout--) {
+	while (tries--) {
 		RTSX_READ(sc, RTSX_PHY_RWCTL, &rwctl);
 		if (!(rwctl & RTSX_PHY_BUSY))
 			break;
 	}
-	
-	if (timeout == 0)
-		return (ETIMEDOUT);
-		
-	return (0);
+
+	return ((tries == 0) ? ETIMEDOUT : 0);
 }
 
 /*
@@ -1011,7 +1008,7 @@ rtsx_set_sd_clock(struct rtsx_softc *sc, uint32_t freq)
 	error = rtsx_switch_sd_clock(sc, n, div, mcu);
 
  done:
-	return error;
+	return (error);
 }
 
 static int
@@ -1058,7 +1055,7 @@ rtsx_bus_power_off(struct rtsx_softc *sc)
 
 	if (bootverbose)
 		device_printf(sc->rtsx_dev, "rtsx_bus_power_off()\n");
-	
+
 	if ((error = rtsx_stop_sd_clock(sc)))
 		return (error);
 
@@ -1123,7 +1120,7 @@ rtsx_bus_power_on(struct rtsx_softc *sc)
 {
 	if (bootverbose)
 		device_printf(sc->rtsx_dev, "rtsx_bus_power_on()\n");
-	
+
 	/* Select SD card. */
 	RTSX_WRITE(sc, RTSX_CARD_SELECT, RTSX_SD_MOD_SEL);
 	RTSX_WRITE(sc, RTSX_CARD_SHARE_MODE, RTSX_CARD_SHARE_48_SD);
@@ -1189,9 +1186,9 @@ rtsx_bus_power_on(struct rtsx_softc *sc)
 			RTSX_BITOP(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_PWR_MASK, RTSX_LDO3318_VCC2);
 		else
 			RTSX_BITOP(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_PWR_MASK, RTSX_LDO3318_VCC1);
-		
+
 		DELAY(200);
-	
+
 		/* Full power. */
 		RTSX_BITOP(sc, RTSX_CARD_PWR_CTL, RTSX_SD_PWR_MASK, RTSX_SD_PWR_ON);
 		if (sc->rtsx_flags & RTSX_F_5209)
@@ -1267,7 +1264,7 @@ rtsx_response_type(uint16_t mmc_rsp)
 
 	for (i = 0; i < nitems(rsp_types); i++) {
 		if (mmc_rsp == rsp_types[i].mmc_rsp)
-			return rsp_types[i].rtsx_rsp;
+			return (rsp_types[i].rtsx_rsp);
 	}
 
 	return (0);
@@ -1300,7 +1297,7 @@ rtsx_push_cmd(struct rtsx_softc *sc, uint8_t cmd, uint16_t reg,
 	      uint8_t mask, uint8_t data)
 {
 	KASSERT(sc->rtsx_cmd_index < RTSX_HOSTCMD_MAX,
-		("rtsx: too many host commands (%d)\n", sc->rtsx_cmd_index));
+		("rtsx: Too many host commands (%d)\n", sc->rtsx_cmd_index));
 
 	uint32_t *cmd_buffer = (uint32_t *)(sc->rtsx_cmd_dmamem);
 	cmd_buffer[sc->rtsx_cmd_index++] =
@@ -1320,7 +1317,7 @@ rtsx_send_cmd(struct rtsx_softc *sc, struct mmc_command *cmd)
 
 	if (bootverbose)
 		device_printf(sc->rtsx_dev, "rtsx_send_cmd()\n");
-		
+
 	sc->rtsx_intr_status = 0;
 
 	/* Sync command DMA buffer. */
@@ -1333,7 +1330,7 @@ rtsx_send_cmd(struct rtsx_softc *sc, struct mmc_command *cmd)
 	       ((sc->rtsx_cmd_index * 4) & 0x00ffffff) | RTSX_START_CMD | RTSX_HW_AUTO_RSP);
 
 	if ((error = rtsx_wait_intr(sc, RTSX_TRANS_OK_INT, hz * sc->rtsx_timeout)))
-		cmd->error = MMC_ERR_TIMEOUT;
+		cmd->error = error;
 
 	return (error);
 }
@@ -1347,7 +1344,7 @@ rtsx_send_cmd_nowait(struct rtsx_softc *sc, struct mmc_command *cmd)
 
 	if (bootverbose)
 		device_printf(sc->rtsx_dev, "rtsx_send_cmd_nowait()\n");
-		
+
 	sc->rtsx_intr_status = 0;
 	/* Sync command DMA buffer. */
 	bus_dmamap_sync(sc->rtsx_cmd_dma_tag, sc->rtsx_cmd_dmamap, BUS_DMASYNC_PREREAD);
@@ -1378,12 +1375,8 @@ static void
 rtsx_soft_reset(struct rtsx_softc *sc)
 {
 	uint32_t status;
-	
-	device_printf(sc->rtsx_dev, "Soft reset\n");
 
-	/* Clear error. */
-	(void)rtsx_write(sc, RTSX_CARD_STOP, RTSX_SD_STOP|RTSX_SD_CLR_ERR,
-			 RTSX_SD_STOP|RTSX_SD_CLR_ERR);
+	device_printf(sc->rtsx_dev, "Soft reset\n");
 
 	/* Enable interrupt write-clear (default is read-clear). */
 	(void)rtsx_write(sc, RTSX_NFTS_TX_CTRL, RTSX_INT_READ_CLR, 0);
@@ -1404,6 +1397,10 @@ rtsx_soft_reset(struct rtsx_softc *sc)
 	(void)rtsx_write(sc, RTSX_DMACTL, RTSX_DMA_RST, RTSX_DMA_RST);
 
 	(void)rtsx_write(sc, RTSX_RBCTL, RTSX_RB_FLUSH, RTSX_RB_FLUSH);
+
+	/* Clear error. */
+	(void)rtsx_write(sc, RTSX_CARD_STOP, RTSX_SD_STOP|RTSX_SD_CLR_ERR,
+			 RTSX_SD_STOP|RTSX_SD_CLR_ERR);
 }
 
 static int
@@ -1416,11 +1413,9 @@ rtsx_send_req_get_resp(struct rtsx_softc *sc, struct mmc_command *cmd) {
 	rsp_type = rtsx_response_type(cmd->flags & MMC_RSP_MASK);
 	if (rsp_type == 0) {
 		device_printf(sc->rtsx_dev, "Unknown response type 0x%lx\n", (cmd->flags & MMC_RSP_MASK));
-		cmd->error = MMC_ERR_FAILED;
-		return (EINVAL);
+		cmd->error = MMC_ERR_INVALID;
+		return (MMC_ERR_INVALID);
 	}
-
-//	rtsx_set_sd_clock(sc, sc->rtsx_sd_clock);
 
 	/* Select SD card. */
 	RTSX_WRITE(sc, RTSX_CARD_SELECT, RTSX_SD_MOD_SEL);
@@ -1462,7 +1457,7 @@ rtsx_send_req_get_resp(struct rtsx_softc *sc, struct mmc_command *cmd) {
 	/* Sync command DMA buffer */
 	bus_dmamap_sync(sc->rtsx_cmd_dma_tag, sc->rtsx_cmd_dmamap, BUS_DMASYNC_POSTREAD);
 	bus_dmamap_sync(sc->rtsx_cmd_dma_tag, sc->rtsx_cmd_dmamap, BUS_DMASYNC_POSTWRITE);
-	
+
 	/* Copy card response into mmc response buffer */
 	if (ISSET(cmd->flags, MMC_RSP_PRESENT)) {
 		uint32_t *cmd_buffer = (uint32_t *)(sc->rtsx_cmd_dmamem);
@@ -1476,7 +1471,7 @@ rtsx_send_req_get_resp(struct rtsx_softc *sc, struct mmc_command *cmd) {
 			/* First byte is CHECK_REG_CMD return value, skip it */
 			unsigned char *ptr = (unsigned char *)cmd_buffer + 1;
 			int i;
-			
+
 			/*
 			 * The controller offloads the last byte {CRC-7, end bit 1}
 			 * of response type R2. Assign dummy CRC, 0, and end bit to this
@@ -1495,7 +1490,7 @@ rtsx_send_req_get_resp(struct rtsx_softc *sc, struct mmc_command *cmd) {
 				((be32toh(cmd_buffer[0]) & 0x0000ffff) << 16) |
 				((be32toh(cmd_buffer[1]) & 0xffff0000) >> 16);
 		}
-		
+
 		if (bootverbose)
 			device_printf(sc->rtsx_dev, "cmd->resp = 0x%08x 0x%08x 0x%08x 0x%08x\n",
 				      cmd->resp[0], cmd->resp[1], cmd->resp[2], cmd->resp[3]);
@@ -1512,15 +1507,15 @@ rtsx_xfer_short(struct rtsx_softc *sc, struct mmc_command *cmd)
 	int error = 0;
 
 	if (cmd->data == NULL || cmd->data->len == 0) {
-		cmd->error = MMC_ERR_FAILED;
-		return ENOMEM;
+		cmd->error = MMC_ERR_INVALID;
+		return (MMC_ERR_INVALID);
 	}
 	if (cmd->data->xfer_len == 0)
 		cmd->data->xfer_len = (cmd->data->len > RTSX_MAX_DATA_BLKLEN) ?
 			RTSX_MAX_DATA_BLKLEN : cmd->data->len;
-				
+
 	read = ISSET(cmd->data->flags, MMC_DATA_READ);
-	
+
 	if (bootverbose)
 		device_printf(sc->rtsx_dev, "rtsx_xfer_short() - %s xfer: %ld bytes with block size %ld\n",
 			      read ? "Read" : "Write",
@@ -1529,19 +1524,19 @@ rtsx_xfer_short(struct rtsx_softc *sc, struct mmc_command *cmd)
 	if (cmd->data->len > 512) {
 		device_printf(sc->rtsx_dev, "rtsx_xfer_short() length too large: %ld > 512\n",
 			      (unsigned long)cmd->data->len);
-		cmd->error = MMC_ERR_FAILED;
-		return ENOMEM;
+		cmd->error = MMC_ERR_INVALID;
+		return (MMC_ERR_INVALID);
 	}
 
 	rsp_type = rtsx_response_type(cmd->flags & MMC_RSP_MASK);
 	if (rsp_type == 0) {
 		device_printf(sc->rtsx_dev, "Unknown response type 0x%lx\n", (cmd->flags & MMC_RSP_MASK));
-		cmd->error = MMC_ERR_FAILED;
-		return (EINVAL);
+		cmd->error = MMC_ERR_INVALID;
+		return (MMC_ERR_INVALID);
 	}
-	
+
 	read = ISSET(cmd->data->flags, MMC_DATA_READ);
-	
+
 	if (read) {
 		rtsx_init_cmd(sc, cmd);
 
@@ -1554,12 +1549,12 @@ rtsx_xfer_short(struct rtsx_softc *sc, struct mmc_command *cmd)
 			      0xff, ((cmd->data->len / cmd->data->xfer_len) & 0xff));
 		rtsx_push_cmd(sc, RTSX_WRITE_REG_CMD, RTSX_SD_BLOCK_CNT_H,
 			      0xff, ((cmd->data->len / cmd->data->xfer_len) >> 8));
-		
+
 		/* from linux: rtsx_pci_sdmmc.c sd_read_data() */
 		rtsx_push_cmd(sc, RTSX_WRITE_REG_CMD, RTSX_SD_CFG2,
 			      0xff, RTSX_SD_CALCULATE_CRC7 | RTSX_SD_CHECK_CRC16 |
 			      RTSX_SD_NO_WAIT_BUSY_END | RTSX_SD_CHECK_CRC7 | RTSX_SD_RSP_LEN_6);
-	
+
 		/* Use the ping-pong buffer (cmd buffer) */
 		rtsx_push_cmd(sc, RTSX_WRITE_REG_CMD, RTSX_CARD_DATA_SOURCE,
 			      0x01, RTSX_PINGPONG_BUFFER);
@@ -1595,7 +1590,7 @@ rtsx_xfer_short(struct rtsx_softc *sc, struct mmc_command *cmd)
 			      0xff, ((cmd->data->len / cmd->data->xfer_len) & 0xff));
 		rtsx_push_cmd(sc, RTSX_WRITE_REG_CMD, RTSX_SD_BLOCK_CNT_H,
 			      0xff, ((cmd->data->len / cmd->data->xfer_len) >> 8));
-		
+
 		/* from linux: rtsx_pci_sdmmc.c sd_write_data() */
 		rtsx_push_cmd(sc, RTSX_WRITE_REG_CMD, RTSX_SD_CFG2,
 			      0xff, RTSX_SD_CALCULATE_CRC7 | RTSX_SD_CHECK_CRC16 |
@@ -1624,7 +1619,7 @@ rtsx_read_ppbuf(struct rtsx_softc *sc, struct mmc_command *cmd)
 	int remain = cmd->data->len;
 	int i, j;
 	int error;
-		
+
 	for (j = 0; j < cmd->data->len / RTSX_HOSTCMD_MAX; j++) {
 		sc->rtsx_cmd_index = 0;
 		for (i = 0; i < RTSX_HOSTCMD_MAX; i++) {
@@ -1657,6 +1652,7 @@ rtsx_read_ppbuf(struct rtsx_softc *sc, struct mmc_command *cmd)
 
 		memcpy(ptr, sc->rtsx_cmd_dmamem, remain);
 	}
+
 	return (0);
 }
 
@@ -1666,13 +1662,12 @@ rtsx_read_ppbuf(struct rtsx_softc *sc, struct mmc_command *cmd)
 static int
 rtsx_write_ppbuf(struct rtsx_softc *sc, struct mmc_command *cmd)
 {
-
 	uint16_t reg = RTSX_PPBUF_BASE2;
 	uint8_t *ptr = cmd->data->data;
 	int remain = cmd->data->len;
 	int i, j;
 	int error;
-		
+
 	for (j = 0; j < cmd->data->len / RTSX_HOSTCMD_MAX; j++) {
 		sc->rtsx_cmd_index = 0;
 		for (i = 0; i < RTSX_HOSTCMD_MAX; i++) {
@@ -1714,7 +1709,7 @@ rtsx_xfer(struct rtsx_softc *sc, struct mmc_command *cmd)
 	if (cmd->data->xfer_len == 0)
 		cmd->data->xfer_len = (cmd->data->len > RTSX_MAX_DATA_BLKLEN) ?
 			RTSX_MAX_DATA_BLKLEN : cmd->data->len;
-				
+
 	if (bootverbose)
 		device_printf(sc->rtsx_dev, "rtsx_xfer() - %s xfer: %ld bytes with block size %ld\n",
 			      read ? "Read" : "Write",
@@ -1723,8 +1718,8 @@ rtsx_xfer(struct rtsx_softc *sc, struct mmc_command *cmd)
 	if (cmd->data->len > RTSX_DMA_DATA_BUFSIZE) {
 		device_printf(sc->rtsx_dev, "rtsx_xfer() length too large: %ld > %d\n",
 			      (unsigned long)cmd->data->len, RTSX_DMA_DATA_BUFSIZE);
-		cmd->error = MMC_ERR_FAILED;
-		return ENOMEM;
+		cmd->error = MMC_ERR_INVALID;
+		return (MMC_ERR_INVALID);
 	}
 
 	if (!read) {
@@ -1732,7 +1727,7 @@ rtsx_xfer(struct rtsx_softc *sc, struct mmc_command *cmd)
 		if (error)
 			return (error);
 	}
-	
+
 	/* Configure DMA transfer mode parameters */
 	if (cmd->opcode == MMC_READ_MULTIPLE_BLOCK)
 		cfg2 = RTSX_SD_CHECK_CRC16 | RTSX_SD_NO_WAIT_BUSY_END | RTSX_SD_RSP_LEN_6;
@@ -1805,10 +1800,10 @@ rtsx_xfer(struct rtsx_softc *sc, struct mmc_command *cmd)
 	rtsx_send_cmd_nowait(sc, cmd);
 
 	sc->rtsx_intr_status = 0;
-	
+
 	if (!read)
 		memcpy(sc->rtsx_data_dmamem, cmd->data->data, cmd->data->len);
-	
+
 	/* Sync data DMA buffer */
 	bus_dmamap_sync(sc->rtsx_data_dma_tag, sc->rtsx_data_dmamap, BUS_DMASYNC_PREREAD);
 	bus_dmamap_sync(sc->rtsx_data_dma_tag, sc->rtsx_data_dmamap, BUS_DMASYNC_PREWRITE);
@@ -1819,7 +1814,7 @@ rtsx_xfer(struct rtsx_softc *sc, struct mmc_command *cmd)
 	       (cmd->data->len & 0x00ffffff));
 
 	if ((error = rtsx_wait_intr(sc, RTSX_TRANS_OK_INT, hz * sc->rtsx_timeout))) {
-		cmd->error = MMC_ERR_TIMEOUT;
+		cmd->error = error;
 		return (error);
 	}
 
@@ -1831,7 +1826,7 @@ rtsx_xfer(struct rtsx_softc *sc, struct mmc_command *cmd)
 		memcpy(cmd->data->data, sc->rtsx_data_dmamem, cmd->data->len);
 	else
 		/* Send CMD12 after AUTO_WRITE3 (see mmcsd_rw() in mmcsd.c) */
-		rtsx_send_req_get_resp(sc, sc->rtsx_req->stop);
+		error = rtsx_send_req_get_resp(sc, sc->rtsx_req->stop);
 
 	return (error);
 }
@@ -1979,7 +1974,7 @@ rtsx_mmcbr_update_ios(device_t bus, device_t child)
 		bus_width = RTSX_BUS_WIDTH_8;
 		break;
 	default:
-		return (EINVAL);
+		return (MMC_ERR_INVALID);
 	}
 	if ((error = rtsx_write(sc, RTSX_SD_CFG1, RTSX_BUS_WIDTH_MASK, bus_width)))
 		return (error);
@@ -1990,7 +1985,7 @@ rtsx_mmcbr_update_ios(device_t bus, device_t child)
 		if ((error = rtsx_set_sd_clock(sc, ios->clock)))
 			return (error);
 	}
-	
+
 	/* Set power mode */
 	switch (ios->power_mode) {
 	case power_off:
@@ -2001,6 +1996,12 @@ rtsx_mmcbr_update_ios(device_t bus, device_t child)
 		}
 		break;
 	case power_up:
+		if (sc->rtsx_power_mode != power_up) {
+			if ((error = rtsx_bus_power_on(sc)))
+				return (error);
+			sc->rtsx_power_mode = power_up;
+		}
+		break;
 	case power_on:
 		if (sc->rtsx_power_mode != power_on) {
 			if ((error = rtsx_bus_power_on(sc)))
@@ -2059,10 +2060,7 @@ rtsx_mmcbr_switch_vccq(device_t bus, device_t child __unused)
 	if (bootverbose)
 		device_printf(sc->rtsx_dev, "rtsx_mmcbr_switch_vccq(%d)\n", vccq);
 
-	sc->rtsx_power_mode = power_on;
-		
 	return (0);
-
 }
 
 static int
@@ -2078,7 +2076,6 @@ rtsx_mmcbr_tune(device_t bus, device_t child __unused, bool hs400 __unused)
 	sc->rtsx_host.ios.clock = RTSX_SDCLK_50MHZ;
 
 	return (0);
-
 }
 
 static int
@@ -2092,7 +2089,6 @@ rtsx_mmcbr_retune(device_t bus, device_t child __unused, bool reset __unused)
 		device_printf(sc->rtsx_dev, "rtsx_mmcbr_retune()\n");
 
 	return (0);
-
 }
 
 static int
@@ -2101,13 +2097,13 @@ rtsx_mmcbr_request(device_t bus, device_t child __unused, struct mmc_request *re
 	struct rtsx_softc *sc;
 	struct mmc_command *cmd;
 	int error = 0;
-	
+
 	sc = device_get_softc(bus);
 
 	RTSX_LOCK(sc);
 	if (sc->rtsx_req != NULL) {
 		RTSX_UNLOCK(sc);
-                return (EBUSY);
+                return (MMC_ERR_MAX);
         }
 	sc->rtsx_req = req;
 	sc->rtsx_intr_status = 0;
@@ -2123,8 +2119,8 @@ rtsx_mmcbr_request(device_t bus, device_t child __unused, struct mmc_request *re
 	/* Refuse SDIO probe if the chip doesn't support SDIO. */
 	if (cmd->opcode == IO_SEND_OP_COND &&
 	    !ISSET(sc->rtsx_flags, RTSX_F_SDIO_SUPPORT)) {
-		cmd->error = MMC_ERR_FAILED;
-		error = ENOTSUP;
+		cmd->error = MMC_ERR_INVALID;
+		error = MMC_ERR_INVALID;
 		goto done;
 	}
 
@@ -2186,6 +2182,7 @@ rtsx_mmcbr_acquire_host(device_t bus, device_t child __unused)
                 msleep(sc, &sc->rtsx_mtx, 0, "rtsxah", 0);
 	sc->rtsx_bus_busy++;
 	RTSX_UNLOCK(sc);
+
 	return (0);
 }
 	       
@@ -2202,7 +2199,7 @@ rtsx_mmcbr_release_host(device_t bus, device_t child __unused)
 	sc->rtsx_bus_busy--;
 	RTSX_UNLOCK(sc);
 	wakeup(sc);
-	
+
 	return (0);
 }
 
@@ -2254,7 +2251,7 @@ rtsx_attach(device_t dev)
 	int			msi_count = 1;
 	uint32_t		sdio_cfg;
 	int			error;
-	
+
 	if (bootverbose)
 		device_printf(dev, "Attach - Vendor ID: 0x%x - Device ID: 0x%x\n",
 			      pci_get_vendor(dev), pci_get_device(dev));
@@ -2271,7 +2268,7 @@ rtsx_attach(device_t dev)
 	sc->rtsx_host.f_min = RTSX_SDCLK_400KHZ;
 	sc->rtsx_host.f_max = RTSX_SDCLK_400KHZ;
 	sc->rtsx_read_only = 0;
-	
+
 	/* Allocate IRQ. */
 	sc->rtsx_irq_res_id = 0;
 	if (pci_alloc_msi(dev, &msi_count) == 0)
@@ -2294,14 +2291,14 @@ rtsx_attach(device_t dev)
 		device_printf(dev, "Can't allocate memory resource for %d\n", sc->rtsx_res_id);
 		goto destroy_rtsx_irq_res;
 	}
-	
+
 	if (bootverbose)
 		device_printf(dev, "rtsx_irq_res_id: %d - rtsx_res_id: %d\n",
 			      sc->rtsx_irq_res_id, sc->rtsx_res_id);
 
 	sc->rtsx_btag = rman_get_bustag(sc->rtsx_res);
 	sc->rtsx_bhandle = rman_get_bushandle(sc->rtsx_res);
-	
+
 	/* Activate the interrupt */
 	error = bus_setup_intr(dev, sc->rtsx_irq_res, INTR_TYPE_MISC | INTR_MPSAFE,
 			       NULL, rtsx_intr, sc, &sc->rtsx_irq_cookie);
@@ -2310,13 +2307,13 @@ rtsx_attach(device_t dev)
 		goto destroy_rtsx_res;
 	}
 	pci_enable_busmaster(dev);
-	
+
 	/* Initialize device */
 	if (rtsx_init(sc)) {
 		device_printf(dev, "Error during rtsx_init()\n");
 		goto destroy_rtsx_irq;
 	}
-	
+
 	if (rtsx_read_cfg(sc, 0, RTSX_SDIOCFG_REG, &sdio_cfg) == 0) {
 		if ((sdio_cfg & RTSX_SDIOCFG_SDIO_ONLY) ||
 		    (sdio_cfg & RTSX_SDIOCFG_HAVE_SDIO))
@@ -2373,7 +2370,7 @@ rtsx_detach(device_t dev)
 	if (bootverbose)
 		device_printf(dev, "Detach - Vendor ID: 0x%x - Device ID: 0x%x\n",
 			      pci_get_vendor(dev), pci_get_device(dev));
-	
+
 	/* Stop device */
 	error = device_delete_children(sc->rtsx_dev);
 	sc->rtsx_mmc_dev = NULL;
@@ -2406,7 +2403,7 @@ rtsx_shutdown(device_t dev)
 
 	if (bootverbose)
 		device_printf(dev, "Shutdown\n");
-	
+
 	return (0);
 }
 
@@ -2457,7 +2454,7 @@ static device_method_t rtsx_methods[] = {
 	/* Bus interface */
 	DEVMETHOD(bus_read_ivar,	rtsx_read_ivar),
 	DEVMETHOD(bus_write_ivar,	rtsx_write_ivar),
-	
+
 	/* MMC bridge interface */
      	DEVMETHOD(mmcbr_update_ios,	rtsx_mmcbr_update_ios),
 	DEVMETHOD(mmcbr_switch_vccq,	rtsx_mmcbr_switch_vccq),
