@@ -84,13 +84,11 @@ struct rtsx_softc {
 	struct mtx	rtsx_mtx;		/* device mutex */
 	device_t	rtsx_dev;		/* device */
 	uint16_t	rtsx_flags;		/* device flags */
-	uint8_t		rtsx_card_drive_sel;	/* card drive select */
-	uint8_t		rtsx_sd30_drive_sel_3v3;/* value for RTSX_SD30_DRIVE_SEL */
 	device_t	rtsx_mmc_dev;		/* device of mmc bus */
 	struct task	rtsx_card_task;		/* card presence check task */
-	struct timeout_task rtsx_delayed_task;	/* card insert delayed task */
+	struct timeout_task
+			rtsx_card_delayed_task;	/* card insert delayed task */
 	uint32_t 	rtsx_intr_status;	/* soft interrupt status */
-	u_char		rtsx_read_only;		/* card read only status */
 	int		rtsx_irq_res_id;	/* bus IRQ resource id */
 	struct resource *rtsx_irq_res;		/* bus IRQ resource */
 	void		*rtsx_irq_cookie;	/* bus IRQ resource cookie */
@@ -114,8 +112,12 @@ struct rtsx_softc {
 
 	u_char		rtsx_bus_busy;		/* bus busy status */
 	struct mmc_host rtsx_host;		/* host parameters */
-	uint32_t	rtsx_sd_clock;		/* current sd clock */
-	enum mmc_power_mode rtsx_power_mode;	/* current power mode */
+	int8_t		rtsx_ios_bus_width;	/* current host.ios.bus_width */
+	int32_t		rtsx_ios_clock;		/* current host.ios.clock */
+	int8_t		rtsx_ios_power_mode;	/* current host.ios.power mode */
+	uint8_t		rtsx_read_only;		/* card read only status */
+	uint8_t		rtsx_card_drive_sel;	/* value for RTSX_CARD_DRIVE_SEL */
+	uint8_t		rtsx_sd30_drive_sel_3v3;/* value for RTSX_SD30_DRIVE_SEL */
 	struct mmc_request *rtsx_req;		/* MMC request */
 };
 
@@ -212,10 +214,13 @@ static int	rtsx_mmcbr_release_host(device_t bus, device_t child __unused);
 #define	RTSX_UNLOCK(_sc)	mtx_unlock(&(_sc)->rtsx_mtx)
 #define	RTSX_LOCK_DESTROY(_sc)	mtx_destroy(&(_sc)->rtsx_mtx)
 
-#define	RTSX_SDCLK_OFF		0
-#define	RTSX_SDCLK_400KHZ	400000
-#define	RTSX_SDCLK_25MHZ	25000000
-#define	RTSX_SDCLK_50MHZ	50000000
+#define	RTSX_SDCLK_OFF			0
+#define	RTSX_SDCLK_250KHZ	   250000
+#define	RTSX_SDCLK_400KHZ	   400000
+#define	RTSX_SDCLK_25MHZ	 25000000
+#define	RTSX_SDCLK_50MHZ	 50000000
+#define	RTSX_SDCLK_100MHZ	100000000
+#define	RTSX_SDCLK_208MHZ	208000000
 
 #define	RTSX_MAX_DATA_BLKLEN	512
 
@@ -325,7 +330,7 @@ rtsx_dma_alloc(struct rtsx_softc *sc) {
 	    rtsx_dmamap_cb,		/* callback */
 	    &sc->rtsx_cmd_buffer,	/* first arg of callback */
 	    0);			/* flags */
-	if (error != 0 || sc->rtsx_cmd_buffer == 0) {
+	if (error || sc->rtsx_cmd_buffer == 0) {
                 device_printf(sc->rtsx_dev,
 			      "Can't load DMA memory for command transfer\n");
                 error = (error) ? error : EFAULT;
@@ -363,7 +368,7 @@ rtsx_dma_alloc(struct rtsx_softc *sc) {
 	    rtsx_dmamap_cb,		/* callback */
 	    &sc->rtsx_data_buffer,	/* first arg of callback */
 	    0);			/* flags */
-	if (error != 0 || sc->rtsx_data_buffer == 0) {
+	if (error || sc->rtsx_data_buffer == 0) {
                 device_printf(sc->rtsx_dev,
 			      "Can't load DMA memory for data transfer\n");
                 error = (error) ? error : EFAULT;
@@ -388,7 +393,7 @@ rtsx_dma_alloc(struct rtsx_softc *sc) {
 static void
 rtsx_dmamap_cb(void *arg, bus_dma_segment_t *segs, int nsegs, int error)
 {
-        if (error != 0) {
+        if (error) {
                 printf("rtsx_dmamap_cb: error %d\n", error);
                 return;
         }
@@ -530,7 +535,7 @@ rtsx_handle_card_present(struct rtsx_softc *sc)
 	if (!was_present && is_present) {
 		/* small delay for the controller */
 		taskqueue_enqueue_timeout(taskqueue_swi_giant,
-					  &sc->rtsx_delayed_task, -(hz / 2));
+					  &sc->rtsx_card_delayed_task, -(hz / 2));
 	} else if (was_present && !is_present) {
 		taskqueue_enqueue(taskqueue_swi_giant, &sc->rtsx_card_task);
 	}
@@ -601,8 +606,17 @@ rtsx_init(struct rtsx_softc *sc)
 
 	sc->rtsx_card_drive_sel = RTSX_CARD_DRIVE_DEFAULT;
 	sc->rtsx_sd30_drive_sel_3v3 = RTSX_SD30_DRIVE_SEL_3V3;
+
 	sc->rtsx_host.host_ocr = RTSX_SUPPORTED_VOLTAGE;
-	sc->rtsx_host.caps = MMC_CAP_4_BIT_DATA;
+	sc->rtsx_host.f_min = RTSX_SDCLK_250KHZ;
+	sc->rtsx_host.f_max = RTSX_SDCLK_208MHZ;
+	sc->rtsx_read_only = 0;
+	sc->rtsx_host.caps = MMC_CAP_4_BIT_DATA | MMC_CAP_HSPEED |
+		MMC_CAP_UHS_SDR12 | MMC_CAP_UHS_SDR25;
+
+	sc->rtsx_host.caps |= MMC_CAP_UHS_SDR50 | MMC_CAP_UHS_SDR104;
+	if (sc->rtsx_flags & RTSX_F_5209)
+		sc->rtsx_host.caps |= MMC_CAP_8_BIT_DATA;
 
 	if (sc->rtsx_flags & RTSX_F_5227) {
 		uint32_t reg;
@@ -984,8 +998,9 @@ rtsx_set_sd_clock(struct rtsx_softc *sc, uint32_t freq)
 		n = 80; /* minimum */
 		div = RTSX_CLK_DIV_8;
 		mcu = 7;
-		RTSX_BITOP(sc, RTSX_SD_CFG1, RTSX_CLK_DIVIDE_MASK, RTSX_CLK_DIVIDE_128);
-//		RTSX_CLR(sc, RTSX_SD_CFG1, RTSX_CLK_DIVIDE_MASK);		
+		/*!!!*/
+//		RTSX_BITOP(sc, RTSX_SD_CFG1, RTSX_CLK_DIVIDE_MASK, RTSX_CLK_DIVIDE_128);
+		RTSX_CLR(sc, RTSX_SD_CFG1, RTSX_CLK_DIVIDE_MASK);
 		break;
 	case RTSX_SDCLK_25MHZ:
 		n = 100;
@@ -1065,7 +1080,7 @@ rtsx_bus_power_off(struct rtsx_softc *sc)
 	/* Turn off power. */
 	if (sc->rtsx_flags & RTSX_F_5209) {
 		RTSX_BITOP(sc, RTSX_CARD_PWR_CTL, RTSX_SD_PWR_MASK | RTSX_PMOS_STRG_MASK,
-			    RTSX_SD_PWR_OFF | RTSX_PMOS_STRG_400mA);
+			   RTSX_SD_PWR_OFF | RTSX_PMOS_STRG_400mA);
 		RTSX_SET(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_OFF);
 	} else if (sc->rtsx_flags & RTSX_F_5229) {
 		RTSX_BITOP(sc, RTSX_CARD_PWR_CTL, RTSX_SD_PWR_MASK | RTSX_PMOS_STRG_MASK,
@@ -1078,9 +1093,13 @@ rtsx_bus_power_off(struct rtsx_softc *sc)
 			   RTSX_BPP_LDO_SUSPEND);
   	} else {
 		RTSX_CLR(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_VCC1 | RTSX_LDO3318_VCC2);
-		RTSX_SET(sc, RTSX_CARD_PWR_CTL, RTSX_SD_PWR_OFF);
-		RTSX_CLR(sc, RTSX_CARD_PWR_CTL, RTSX_PMOS_STRG_800mA);
+		/*!!!*/
+//		RTSX_SET(sc, RTSX_CARD_PWR_CTL, RTSX_SD_PWR_OFF);
+//		RTSX_CLR(sc, RTSX_CARD_PWR_CTL, RTSX_PMOS_STRG_800mA);
 	}
+
+	RTSX_SET(sc, RTSX_CARD_PWR_CTL, RTSX_SD_PWR_OFF);
+	RTSX_CLR(sc, RTSX_CARD_PWR_CTL, RTSX_PMOS_STRG_800mA);
 
 	/* Disable pull control. */
 	if (sc->rtsx_flags & RTSX_F_8411) {
@@ -1195,8 +1214,10 @@ rtsx_bus_power_on(struct rtsx_softc *sc)
 			RTSX_BITOP(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_PWR_MASK,
 				   RTSX_LDO3318_ON);
 		else
-			RTSX_BITOP(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_PWR_MASK,
-				   RTSX_LDO3318_VCC1 | RTSX_LDO3318_VCC2);
+			/*!!!*/
+//			RTSX_BITOP(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_PWR_MASK,
+//				   RTSX_LDO3318_VCC1 | RTSX_LDO3318_VCC2);
+			RTSX_BITOP(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_PWR_MASK, RTSX_LDO3318_VCC2);
 	}
 
 	/* Enable SD card output */
@@ -1418,8 +1439,9 @@ rtsx_send_req_get_resp(struct rtsx_softc *sc, struct mmc_command *cmd) {
 	}
 
 	/* Select SD card. */
-	RTSX_WRITE(sc, RTSX_CARD_SELECT, RTSX_SD_MOD_SEL);
-	RTSX_WRITE(sc, RTSX_CARD_SHARE_MODE, RTSX_CARD_SHARE_48_SD);
+	/*!!!*/
+//	RTSX_WRITE(sc, RTSX_CARD_SELECT, RTSX_SD_MOD_SEL);
+//	RTSX_WRITE(sc, RTSX_CARD_SHARE_MODE, RTSX_CARD_SHARE_48_SD);
 
 	rtsx_init_cmd(sc, cmd);
 
@@ -1570,6 +1592,14 @@ rtsx_xfer_short(struct rtsx_softc *sc, struct mmc_command *cmd)
 			return (error);
 
 		error = rtsx_read_ppbuf(sc, cmd);
+
+		if (bootverbose && error == 0 && cmd->opcode == ACMD_SEND_SCR) {
+			uint8_t *ptr = cmd->data->data;
+			device_printf(sc->rtsx_dev, "SCR = 0x%02x%02x%02x%02x%02x%02x%02x%02x\n",
+				      ptr[0], ptr[1], ptr[2], ptr[3],
+				      ptr[4], ptr[5], ptr[6], ptr[7]);
+		}
+
 	} else {
 		error = rtsx_send_req_get_resp(sc, cmd);
 		if (error)
@@ -1838,51 +1868,53 @@ rtsx_read_ivar(device_t bus, device_t child, int which, uintptr_t *result)
 
 	sc = device_get_softc(bus);
 	switch (which) {
-	case MMCBR_IVAR_BUS_MODE:
+	case MMCBR_IVAR_BUS_MODE:		/* ivar  0 - 1 = opendrain, 2 = pushpull */
 		*result = sc->rtsx_host.ios.bus_mode;
 		break;
-	case MMCBR_IVAR_BUS_WIDTH:
+	case MMCBR_IVAR_BUS_WIDTH:		/* ivar  1 - 0 = 1b   2 = 4b, 3 = 8b */
 		*result = sc->rtsx_host.ios.bus_width;
 		break;
-	case MMCBR_IVAR_CHIP_SELECT:
+	case MMCBR_IVAR_CHIP_SELECT:		/* ivar  2 - O = dontcare, 1 = cs_high, 2 = cs_low */
 		*result = sc->rtsx_host.ios.chip_select;
 		break;
-	case MMCBR_IVAR_CLOCK:
+	case MMCBR_IVAR_CLOCK:			/* ivar  3 - clock in Hz */
 		*result = sc->rtsx_host.ios.clock;
 		break;
-	case MMCBR_IVAR_F_MIN:
+	case MMCBR_IVAR_F_MIN:			/* ivar  4 */
 		*result = sc->rtsx_host.f_min;
 		break;
-	case MMCBR_IVAR_F_MAX:
+	case MMCBR_IVAR_F_MAX:			/* ivar  5 */
 		*result = sc->rtsx_host.f_max;
 		break;
-	case MMCBR_IVAR_HOST_OCR: 	/* host operation conditions register */
+	case MMCBR_IVAR_HOST_OCR: 		/* ivar  6 - host operation conditions register */
 		*result = sc->rtsx_host.host_ocr;
 		break;
-	case MMCBR_IVAR_MODE:
+	case MMCBR_IVAR_MODE:			/* ivar  7 - 0 = mode_mmc, 1 = mode_sd */
 		*result = sc->rtsx_host.mode;
 		break;
-	case MMCBR_IVAR_OCR:		/* operation conditions register */
+	case MMCBR_IVAR_OCR:			/* ivar  8 - operation conditions register */
 		*result = sc->rtsx_host.ocr;
 		break;
-	case MMCBR_IVAR_POWER_MODE:
+	case MMCBR_IVAR_POWER_MODE:		/* ivar  9 - 0 = off, 1 = up, 2 = on */
 		*result = sc->rtsx_host.ios.power_mode;
 		break;
-	case MMCBR_IVAR_VDD:
+	case MMCBR_IVAR_VDD:			/* ivar 11 - voltage power pin */
 		*result = sc->rtsx_host.ios.vdd;
 		break;
-	case MMCBR_IVAR_VCCQ:
+	case MMCBR_IVAR_VCCQ:			/* ivar 12 - signaling: 0 = 1.20V, 1 = 1.80V, 2 = 3.30V */
 		*result = sc->rtsx_host.ios.vccq;
 		break;
-	case MMCBR_IVAR_CAPS:
+	case MMCBR_IVAR_CAPS:			/* ivar 13 */
 		*result = sc->rtsx_host.caps;
 		break;
-	case MMCBR_IVAR_TIMING:
+	case MMCBR_IVAR_TIMING:			/* ivar 14 - 0 = normal, 1 = timing_hs, ... */
 		*result = sc->rtsx_host.ios.timing;
 		break;
-	case MMCBR_IVAR_MAX_DATA:
+	case MMCBR_IVAR_MAX_DATA:		/* ivar 15 */
 		*result = MAXPHYS / MMC_SECTOR_SIZE;
 		break;
+	case MMCBR_IVAR_RETUNE_REQ:		/* ivar 10 */
+	case MMCBR_IVAR_MAX_BUSY_TIMEOUT:	/* ivar 16 */
 	default:
 		return (EINVAL);
 	}
@@ -1905,42 +1937,47 @@ rtsx_write_ivar(device_t bus, device_t child, int which, uintptr_t value)
 
 	sc = device_get_softc(bus);
 	switch (which) {
-	case MMCBR_IVAR_BUS_MODE:
+	case MMCBR_IVAR_BUS_MODE:		/* ivar  0 - 1 = opendrain, 2 = pushpull */
 		sc->rtsx_host.ios.bus_mode = value;
 		break;
-	case MMCBR_IVAR_BUS_WIDTH:
+	case MMCBR_IVAR_BUS_WIDTH:		/* ivar  1 - 0 = 1b   2 = 4b, 3 = 8b */
 		sc->rtsx_host.ios.bus_width = value;
+		sc->rtsx_ios_bus_width = -1;	/* To be updated on next rtsx_mmcbr_update_ios() */
 		break;
-	case MMCBR_IVAR_CHIP_SELECT:
+	case MMCBR_IVAR_CHIP_SELECT:		/* ivar  2 - O = dontcare, 1 = cs_high, 2 = cs_low */
 		sc->rtsx_host.ios.chip_select = value;
 		break;
-	case MMCBR_IVAR_CLOCK:
+	case MMCBR_IVAR_CLOCK:			/* ivar  3 - clock in Hz */
 		sc->rtsx_host.ios.clock = value;
+		sc->rtsx_ios_clock = -1;	/* To be updated on next rtsx_mmcbr_update_ios() */
 		break;
-	case MMCBR_IVAR_MODE:
+	case MMCBR_IVAR_MODE:			/* ivar  7 - 0 = mode_mmc, 1 = mode_sd */ 
 		sc->rtsx_host.mode = value;
 		break;
-	case MMCBR_IVAR_OCR:		/* operation conditions register */
+	case MMCBR_IVAR_OCR:			/* ivar  8 - operation conditions register */
 		sc->rtsx_host.ocr = value;
 		break;
-	case MMCBR_IVAR_POWER_MODE:
+	case MMCBR_IVAR_POWER_MODE:		/* ivar  9 - 0 = off, 1 = up, 2 = on */
 		sc->rtsx_host.ios.power_mode = value;
+		sc->rtsx_ios_power_mode = -1;	/* To be updated on next rtsx_mmcbr_update_ios() */
 		break;
-	case MMCBR_IVAR_VDD:
+	case MMCBR_IVAR_VDD:			/* ivar 11 - voltage power pin */ 
 		sc->rtsx_host.ios.vdd = value;
 		break;
-	case MMCBR_IVAR_VCCQ:
+	case MMCBR_IVAR_VCCQ:			/* ivar 12 - signaling: 0 = 1.20V, 1 = 1.80V, 2 = 3.30V */
 		sc->rtsx_host.ios.vccq = value;
 		break;
-	case MMCBR_IVAR_TIMING:
+	case MMCBR_IVAR_TIMING:			/* ivar 14 - 0 = normal, 1 = timing_hs, ... */
 		sc->rtsx_host.ios.timing = value;
 		break;
 	/* These are read-only */
-	case MMCBR_IVAR_F_MIN:
-	case MMCBR_IVAR_F_MAX:
-	case MMCBR_IVAR_HOST_OCR:
-	case MMCBR_IVAR_CAPS:
-	case MMCBR_IVAR_MAX_DATA:
+	case MMCBR_IVAR_F_MIN:			/* ivar  4 */
+	case MMCBR_IVAR_F_MAX:			/* ivar  5 */
+	case MMCBR_IVAR_HOST_OCR: 		/* ivar  6 - host operation conditions register */
+	case MMCBR_IVAR_RETUNE_REQ:		/* ivar 10 */
+	case MMCBR_IVAR_CAPS:			/* ivar 13 */
+	case MMCBR_IVAR_MAX_DATA:		/* ivar 15 */
+	case MMCBR_IVAR_MAX_BUSY_TIMEOUT:	/* ivar 16 */
 	default:
 		return (EINVAL);
 	}
@@ -1953,7 +1990,6 @@ rtsx_mmcbr_update_ios(device_t bus, device_t child)
 {
 	struct rtsx_softc *sc;
 	struct mmc_ios *ios;
-	uint32_t bus_width;
 	int error;
 
 	sc = device_get_softc(bus);
@@ -1962,54 +1998,62 @@ rtsx_mmcbr_update_ios(device_t bus, device_t child)
 	if (bootverbose)
 		device_printf(bus, "rtsx_mmcbr_update_ios()\n");
 
-	/* Set the bus width. */
-	switch (ios->bus_width) {
-	case bus_width_1:
-		bus_width = RTSX_BUS_WIDTH_1;
-		break;
-	case bus_width_4:	
-		bus_width = RTSX_BUS_WIDTH_4;
-		break;
-	case bus_width_8:
-		bus_width = RTSX_BUS_WIDTH_8;
-		break;
-	default:
-		return (MMC_ERR_INVALID);
+	/* if MMCBR_IVAR_BUS_WIDTH updated */
+	if (sc->rtsx_ios_bus_width < 0) {
+		uint32_t bus_width;
+
+		sc->rtsx_ios_bus_width = ios->bus_width;
+		switch (ios->bus_width) {
+		case bus_width_1:
+			bus_width = RTSX_BUS_WIDTH_1;
+			break;
+		case bus_width_4:
+			bus_width = RTSX_BUS_WIDTH_4;
+			break;
+		case bus_width_8:
+			bus_width = RTSX_BUS_WIDTH_8;
+			break;
+		default:
+			return (MMC_ERR_INVALID);
+		}
+		if ((error = rtsx_write(sc, RTSX_SD_CFG1, RTSX_BUS_WIDTH_MASK, bus_width)))
+			return (error);
+
+		if (bootverbose) {
+			char *busw[] = {
+					"1 bit",
+					"4 bits",
+					"8 bits"
+			};
+				device_printf(sc->rtsx_dev, "Setting bus width to %s\n", busw[bus_width]);
+		}
 	}
-	if ((error = rtsx_write(sc, RTSX_SD_CFG1, RTSX_BUS_WIDTH_MASK, bus_width)))
-		return (error);
-	
-	/* Set sd clock */
-	if (sc->rtsx_sd_clock != ios->clock) {
-		sc->rtsx_sd_clock = ios->clock;
+
+	/* if MMCBR_IVAR_CLOCK updated */
+	if (sc->rtsx_ios_clock < 0) {
+		sc->rtsx_ios_clock = ios->clock;
 		if ((error = rtsx_set_sd_clock(sc, ios->clock)))
 			return (error);
 	}
 
-	/* Set power mode */
-	switch (ios->power_mode) {
-	case power_off:
-		if (sc->rtsx_power_mode != power_off) {
+	/* if MMCBR_IVAR_POWER_MODE updated */
+	if (sc->rtsx_ios_power_mode < 0) {
+		sc->rtsx_ios_power_mode = ios->power_mode;
+		switch (ios->power_mode) {
+		case power_off:
 			if ((error = rtsx_bus_power_off(sc)))
 				return (error);
-			sc->rtsx_power_mode = power_off;
-		}
-		break;
-	case power_up:
-		if (sc->rtsx_power_mode != power_up) {
+			break;
+		case power_up:
 			if ((error = rtsx_bus_power_on(sc)))
 				return (error);
-			sc->rtsx_power_mode = power_up;
-		}
-		break;
-	case power_on:
-		if (sc->rtsx_power_mode != power_on) {
+			break;
+		case power_on:
 			if ((error = rtsx_bus_power_on(sc)))
 				return (error);
-			sc->rtsx_power_mode = power_on;
+			break;
 		}
-		break;
-	};
+	}
 
 	return (0);
 }
@@ -2064,16 +2108,15 @@ rtsx_mmcbr_switch_vccq(device_t bus, device_t child __unused)
 }
 
 static int
-rtsx_mmcbr_tune(device_t bus, device_t child __unused, bool hs400 __unused)
+rtsx_mmcbr_tune(device_t bus, device_t child __unused, bool hs400)
 {
 	struct rtsx_softc *sc;
 
 	sc = device_get_softc(bus);
 
 	if (bootverbose)
-		device_printf(sc->rtsx_dev, "rtsx_mmcbr_tune()\n");
-
-	sc->rtsx_host.ios.clock = RTSX_SDCLK_50MHZ;
+		device_printf(sc->rtsx_dev, "rtsx_mmcbr_tune() - hs400 = %s\n",
+			      (hs400) ? "true" : "false");
 
 	return (0);
 }
@@ -2265,9 +2308,6 @@ rtsx_attach(device_t dev)
 	tree = SYSCTL_CHILDREN(device_get_sysctl_tree(dev));
 	SYSCTL_ADD_INT(ctx, tree, OID_AUTO, "req_timeout", CTLFLAG_RW,
 		       &sc->rtsx_timeout, 0, "Request timeout in seconds");
-	sc->rtsx_host.f_min = RTSX_SDCLK_400KHZ;
-	sc->rtsx_host.f_max = RTSX_SDCLK_400KHZ;
-	sc->rtsx_read_only = 0;
 
 	/* Allocate IRQ. */
 	sc->rtsx_irq_res_id = 0;
@@ -2329,7 +2369,7 @@ rtsx_attach(device_t dev)
 	/* from dwmmc.c */
 	TASK_INIT(&sc->rtsx_card_task, 0, rtsx_card_task, sc);
 	/* really giant? */
-	TIMEOUT_TASK_INIT(taskqueue_swi_giant, &sc->rtsx_delayed_task, 0,
+	TIMEOUT_TASK_INIT(taskqueue_swi_giant, &sc->rtsx_card_delayed_task, 0,
 			  rtsx_card_task, sc);
 
 	/* 
@@ -2374,11 +2414,11 @@ rtsx_detach(device_t dev)
 	/* Stop device */
 	error = device_delete_children(sc->rtsx_dev);
 	sc->rtsx_mmc_dev = NULL;
-	if (error != 0)
+	if (error)
 		return (error);
 
 	taskqueue_drain(taskqueue_swi_giant, &sc->rtsx_card_task);
-	taskqueue_drain_timeout(taskqueue_swi_giant, &sc->rtsx_delayed_task);
+	taskqueue_drain_timeout(taskqueue_swi_giant, &sc->rtsx_card_delayed_task);
 
 	/* Teardown the state in our softc created in our attach routine. */
 	rtsx_dma_free(sc);
