@@ -604,9 +604,6 @@ rtsx_init(struct rtsx_softc *sc)
 	uint8_t version;
 	int error = 0;
 
-	sc->rtsx_card_drive_sel = RTSX_CARD_DRIVE_DEFAULT;
-	sc->rtsx_sd30_drive_sel_3v3 = RTSX_SD30_DRIVE_SEL_3V3;
-
 	sc->rtsx_host.host_ocr = RTSX_SUPPORTED_VOLTAGE;
 	sc->rtsx_host.f_min = RTSX_SDCLK_250KHZ;
 	sc->rtsx_host.f_max = RTSX_SDCLK_208MHZ;
@@ -618,7 +615,41 @@ rtsx_init(struct rtsx_softc *sc)
 	if (sc->rtsx_flags & RTSX_F_5209)
 		sc->rtsx_host.caps |= MMC_CAP_8_BIT_DATA;
 
-	if (sc->rtsx_flags & RTSX_F_5227) {
+	/* check IC version */
+	if (sc->rtsx_flags & RTSX_F_5229) {
+		/* Read IC version from dummy register. */
+		RTSX_READ(sc, RTSX_DUMMY_REG, &version);
+		if ((version & 0x0F) == RTSX_IC_VERSION_C)
+			sc->rtsx_flags |= RTSX_F_5229_TYPE_C;
+	} else if (sc->rtsx_flags & RTSX_F_522A) {
+		/* Read IC version from dummy register. */
+		RTSX_READ(sc, RTSX_DUMMY_REG, &version);
+		if ((version & 0x0F) == RTSX_IC_VERSION_A)
+			sc->rtsx_flags |= RTSX_F_522A_TYPE_A;
+	} else if (sc->rtsx_flags & RTSX_F_525A) {
+		/* Read IC version from dummy register. */
+		RTSX_READ(sc, RTSX_DUMMY_REG, &version);
+		if ((version & 0x0F) == RTSX_IC_VERSION_A)
+			sc->rtsx_flags |= RTSX_F_525A_TYPE_A;
+	}
+
+	/* Fetch vendor settings */
+	sc->rtsx_card_drive_sel = RTSX_CARD_DRIVE_DEFAULT;
+	sc->rtsx_sd30_drive_sel_3v3 = RTSX_SD30_DRIVE_SEL_3V3;
+	if (sc->rtsx_flags & RTSX_F_5209) {
+		uint32_t reg;
+
+		reg = pci_read_config(sc->rtsx_dev, RTSX_PCR_SETTING_REG2, 4);
+		if (reg & 0x80) {
+			sc->rtsx_card_drive_sel = (reg >> 8) & 0x3F;
+			sc->rtsx_sd30_drive_sel_3v3 = reg & 0x07;
+//!!!			if (bootverbose)
+			device_printf(sc->rtsx_dev, "card_drive_sel = 0x%02x, sd30_drive_sel_3v3 = 0x%02x\n",
+				      sc->rtsx_card_drive_sel, sc->rtsx_sd30_drive_sel_3v3);
+		} else {
+			device_printf(sc->rtsx_dev, "pci_read_config() error\n");
+		}
+	} else if (sc->rtsx_flags & (RTSX_F_5227 | RTSX_F_522A)) {
 		uint32_t reg;
 
 		reg = pci_read_config(sc->rtsx_dev, RTSX_PCR_SETTING_REG1, 4);
@@ -640,53 +671,68 @@ rtsx_init(struct rtsx_softc *sc)
 	} else if (sc->rtsx_flags & RTSX_F_5229) {
 		uint32_t reg;
 
-		/* Read IC version from dummy register. */
-		RTSX_READ(sc, RTSX_DUMMY_REG, &version);
-		switch (version & 0x0F) {
-		case RTSX_IC_VERSION_A:
-		case RTSX_IC_VERSION_B:
-		case RTSX_IC_VERSION_D:
-			break;
-		case RTSX_IC_VERSION_C:
-			sc->rtsx_flags |= RTSX_F_5229_TYPE_C;
-			break;
-		default:
-			device_printf(sc->rtsx_dev, "RTSX_F_5229 unknown ic version 0x%x\n", version);
-			return (-1);
-		}
 		reg = pci_read_config(sc->rtsx_dev, RTSX_PCR_SETTING_REG1, 4);
-		sc->rtsx_card_drive_sel &= 0x3F;
-		sc->rtsx_card_drive_sel |= ((reg >> 25) & 0x01) << 6;
-		reg = pci_read_config(sc->rtsx_dev, RTSX_PCR_SETTING_REG2, 4);
-		sc->rtsx_sd30_drive_sel_3v3 = (reg >> 5) & 0x03;
-		if (bootverbose)
+		if (reg & 0x1000000) {
+			sc->rtsx_card_drive_sel &= 0x3F;
+			sc->rtsx_card_drive_sel |= ((reg >> 25) & 0x01) << 6;
+			reg = pci_read_config(sc->rtsx_dev, RTSX_PCR_SETTING_REG2, 4);
+			sc->rtsx_sd30_drive_sel_3v3 = rtsx_map_sd_drive((reg >> 5) & 0x03);
+//!!!			if (bootverbose)
 			device_printf(sc->rtsx_dev, "card_drive_sel = 0x%02x, sd30_drive_sel_3v3 = 0x%02x\n",
 				      sc->rtsx_card_drive_sel, sc->rtsx_sd30_drive_sel_3v3);
-	} else if (sc->rtsx_flags & RTSX_F_522A) {
-		/* Read IC version from dummy register. */
-		RTSX_READ(sc, RTSX_DUMMY_REG, &version);
-		if ((version & 0x0F) == RTSX_IC_VERSION_A)
-		    sc->rtsx_flags |= RTSX_F_522A_TYPE_A;
+		} else {
+			device_printf(sc->rtsx_dev, "pci_read_config() error\n");
+		}
 	} else if (sc->rtsx_flags & RTSX_F_525A) {
-		/* Read IC version from dummy register. */
-		RTSX_READ(sc, RTSX_DUMMY_REG, &version);
-		if ((version & 0x0F) == RTSX_IC_VERSION_A)
-		    sc->rtsx_flags |= RTSX_F_525A_TYPE_A;
+		uint32_t reg;
+
+		reg = pci_read_config(sc->rtsx_dev, RTSX_PCR_SETTING_REG1, 4);
+		if (reg & 0x1000000) {
+			sc->rtsx_card_drive_sel &= 0x3F;
+			sc->rtsx_card_drive_sel |= ((reg >> 25) & 0x01) << 6;
+			reg = pci_read_config(sc->rtsx_dev, RTSX_PCR_SETTING_REG2, 4);
+			sc->rtsx_sd30_drive_sel_3v3 = (reg >> 5) & 0x03;
+			if (reg & 0x4000)
+				sc->rtsx_flags |= RTSX_REVERSE_SOCKET;
+//!!!			if (bootverbose)
+			device_printf(sc->rtsx_dev,
+				      "card_drive_sel = 0x%02x, sd30_drive_sel_3v3 = 0x%02x, reverse_socket is %s\n",
+				      sc->rtsx_card_drive_sel, sc->rtsx_sd30_drive_sel_3v3,
+				      (sc->rtsx_flags & RTSX_REVERSE_SOCKET) ? "true" : "false");
+		} else {
+			device_printf(sc->rtsx_dev, "pci_read_config() error\n");
+		}
 	} else if (sc->rtsx_flags & RTSX_F_8411) {
-		uint8_t reg;
-		reg = pci_read_config(sc->rtsx_dev, RTSX_PCR_SETTING_REG3, 1);
-		sc->rtsx_sd30_drive_sel_3v3 = rtsx_map_sd_drive((reg >> 5) & 0x07);
-		if (bootverbose)
-			device_printf(sc->rtsx_dev, "sd30_drive_sel_3v3 = 0x%02x\n", sc->rtsx_sd30_drive_sel_3v3);
+		uint32_t reg1;
+		uint8_t  reg3;
+
+		reg1 = pci_read_config(sc->rtsx_dev, RTSX_PCR_SETTING_REG1, 4);
+		if (reg1 & 0x1000000) {
+			sc->rtsx_card_drive_sel &= 0x3F;
+			sc->rtsx_card_drive_sel |= ((reg1 >> 25) & 0x01) << 6;
+			reg3 = pci_read_config(sc->rtsx_dev, RTSX_PCR_SETTING_REG3, 1);
+			sc->rtsx_sd30_drive_sel_3v3 = (reg3 >> 5) & 0x07;
+//!!!			if (bootverbose)
+			device_printf(sc->rtsx_dev,
+				      "card_drive_sel = 0x%02x, sd30_drive_sel_3v3 = 0x%02x\n",
+				      sc->rtsx_card_drive_sel, sc->rtsx_sd30_drive_sel_3v3);
+		} else {
+			device_printf(sc->rtsx_dev, "pci_read_config() error\n");
+		}
 	} else if (sc->rtsx_flags & RTSX_F_8411B) {
 		uint32_t reg;
+
 		RTSX_READ(sc, RTSX_RTL8411B_PACKAGE, &version);
 		if (version & RTSX_RTL8411B_QFN48)
 			sc->rtsx_flags |= RTSX_F_8411B_QFN48;
 		reg = pci_read_config(sc->rtsx_dev, RTSX_PCR_SETTING_REG1, 4);
-		sc->rtsx_sd30_drive_sel_3v3 = rtsx_map_sd_drive(reg & 0x03);
-//!!!		if (bootverbose)
-		device_printf(sc->rtsx_dev, "sd30_drive_sel_3v3 = 0x%02x\n", sc->rtsx_sd30_drive_sel_3v3);
+		if (reg & 0x1000000) {
+			sc->rtsx_sd30_drive_sel_3v3 = rtsx_map_sd_drive(reg & 0x03);
+//!!!			if (bootverbose)
+			device_printf(sc->rtsx_dev, "sd30_drive_sel_3v3 = 0x%02x\n", sc->rtsx_sd30_drive_sel_3v3);
+		} else {
+			device_printf(sc->rtsx_dev, "pci_read_config() error\n");
+		}
 	}
 
 	if (bootverbose)
