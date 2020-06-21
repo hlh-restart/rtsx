@@ -631,9 +631,22 @@ rtsx_init(struct rtsx_softc *sc)
 		RTSX_READ(sc, RTSX_DUMMY_REG, &version);
 		if ((version & 0x0F) == RTSX_IC_VERSION_A)
 			sc->rtsx_flags |= RTSX_F_525A_TYPE_A;
+	} else if (sc->rtsx_flags & RTSX_F_8411B) {
+		RTSX_READ(sc, RTSX_RTL8411B_PACKAGE, &version);
+		if (version & RTSX_RTL8411B_QFN48)
+			sc->rtsx_flags |= RTSX_F_8411B_QFN48;
 	}
 
 	/* Fetch vendor settings */
+	/* Note in /sys/compat/linuxkpi/common/include/linux/pci.h:
+	 *  static inline int
+	 *  pci_read_config_dword(struct pci_dev *pdev, int where, u32 *val)
+	 *  {
+	 *	*val = (u32)pci_read_config(pdev->dev.bsddev, where, 4);
+	 *	return (0);
+	 *  }
+	 */
+
 	sc->rtsx_card_drive_sel = RTSX_CARD_DRIVE_DEFAULT;
 	sc->rtsx_sd30_drive_sel_3v3 = RTSX_SD30_DRIVE_SEL_3V3;
 	if (sc->rtsx_flags & RTSX_F_5209) {
@@ -652,6 +665,7 @@ rtsx_init(struct rtsx_softc *sc)
 	} else if (sc->rtsx_flags & (RTSX_F_5227 | RTSX_F_522A)) {
 		uint32_t reg;
 
+		sc->rtsx_sd30_drive_sel_3v3 = RTSX_DRIVER_TYPE_B;
 		reg = pci_read_config(sc->rtsx_dev, RTSX_PCR_SETTING_REG1, 4);
 		if (reg & 0x1000000) {
 			sc->rtsx_card_drive_sel &= 0x3F;
@@ -706,6 +720,8 @@ rtsx_init(struct rtsx_softc *sc)
 		uint32_t reg1;
 		uint8_t  reg3;
 
+		sc->rtsx_card_drive_sel = RTSX_RTL8411_CARD_DRIVE_DEFAULT;
+		sc->rtsx_sd30_drive_sel_3v3 = RTSX_DRIVER_TYPE_D;
 		reg1 = pci_read_config(sc->rtsx_dev, RTSX_PCR_SETTING_REG1, 4);
 		if (reg1 & 0x1000000) {
 			sc->rtsx_card_drive_sel &= 0x3F;
@@ -722,9 +738,8 @@ rtsx_init(struct rtsx_softc *sc)
 	} else if (sc->rtsx_flags & RTSX_F_8411B) {
 		uint32_t reg;
 
-		RTSX_READ(sc, RTSX_RTL8411B_PACKAGE, &version);
-		if (version & RTSX_RTL8411B_QFN48)
-			sc->rtsx_flags |= RTSX_F_8411B_QFN48;
+		sc->rtsx_card_drive_sel = RTSX_RTL8411_CARD_DRIVE_DEFAULT;
+		sc->rtsx_sd30_drive_sel_3v3 = RTSX_DRIVER_TYPE_D;
 		reg = pci_read_config(sc->rtsx_dev, RTSX_PCR_SETTING_REG1, 4);
 		if (reg & 0x1000000) {
 			sc->rtsx_sd30_drive_sel_3v3 = rtsx_map_sd_drive(reg & 0x03);
@@ -838,7 +853,7 @@ rtsx_init(struct rtsx_softc *sc)
 	/*!!!*/
 //	RTSX_SET(sc, RTSX_PETXCFG, RTSX_PETXCFG_CLKREQ_PIN);
 
-	/* Specific init */
+	/* Specific extra init */
 	if (sc->rtsx_flags & RTSX_F_5227) {
 		/* Reset ASPM state to default value */
 		RTSX_BITOP(sc, RTSX_ASPM_FORCE_CTL, RTSX_ASPM_FORCE_MASK, RTSX_FORCE_ASPM_NO_ASPM);
@@ -866,7 +881,27 @@ rtsx_init(struct rtsx_softc *sc)
 		/* Configure driving */
 		RTSX_WRITE(sc, RTSX_SD30_CMD_DRIVE_SEL, sc->rtsx_sd30_drive_sel_3v3);
 	} else if (sc->rtsx_flags & RTSX_F_522A) {
-		/*!!! Maybe add specific init from RTS5227 */
+		/* Add specific init from RTS5227 */
+		/* Reset ASPM state to default value */
+		RTSX_BITOP(sc, RTSX_ASPM_FORCE_CTL, RTSX_ASPM_FORCE_MASK, RTSX_FORCE_ASPM_NO_ASPM);
+		/* Configure OBFF */
+		RTSX_BITOP(sc, RTSX_OBFF_CFG, RTSX_OBFF_EN_MASK, RTSX_OBFF_ENABLE);
+		/* Configure driving */
+		u_char driving_3v3[4][3] = {
+					    {0x13, 0x13, 0x13},
+					    {0x96, 0x96, 0x96},
+					    {0x7F, 0x7F, 0x7F},
+					    {0x96, 0x96, 0x96},
+		};
+		RTSX_WRITE(sc, RTSX_SD30_CLK_DRIVE_SEL, driving_3v3[sc->rtsx_sd30_drive_sel_3v3][0]);
+		RTSX_WRITE(sc, RTSX_SD30_CMD_DRIVE_SEL, driving_3v3[sc->rtsx_sd30_drive_sel_3v3][1]);
+		RTSX_WRITE(sc, RTSX_SD30_DAT_DRIVE_SEL, driving_3v3[sc->rtsx_sd30_drive_sel_3v3][2]);
+		/* Configure force_clock_req */
+		if (sc->rtsx_flags | RTSX_REVERSE_SOCKET)
+			RTSX_BITOP(sc, RTSX_PETXCFG, 0xB8, 0xB8);
+		else
+			RTSX_BITOP(sc, RTSX_PETXCFG, 0xB8, 0x88);
+		RTSX_CLR(sc, RTSX_RTS522A_PM_CTRL3,  0x10);
 		RTSX_WRITE(sc, RTSX_FUNC_FORCE_CTL, RTSX_FUNC_FORCE_UPME_XMT_DBG);
 		RTSX_WRITE(sc, RTSX_PCLK_CTL, 0x04);
 		RTSX_WRITE(sc, RTSX_PM_EVENT_DEBUG, RTSX_PME_DEBUG_0);
@@ -888,14 +923,18 @@ rtsx_init(struct rtsx_softc *sc)
 			RTSX_BITOP(sc, RTSX_OOBS_CONFIG,
 				   RTSX_OOBS_AUTOK_DIS | RTSX_OOBS_VAL_MASK, 0x89);
 		}
+	} else  if (sc->rtsx_flags & RTSX_F_8411) {
+		RTSX_WRITE(sc, RTSX_SD30_CMD_DRIVE_SEL, sc->rtsx_sd30_drive_sel_3v3);
+		RTSX_BITOP(sc, RTSX_CARD_PAD_CTL, RTSX_CD_DISABLE_MASK | RTSX_CD_AUTO_DISABLE,
+			   RTSX_CD_ENABLE);
 	} else 	if (sc->rtsx_flags & RTSX_F_8411B) {
 		if (sc->rtsx_flags & RTSX_F_8411B_QFN48)
 			RTSX_WRITE(sc, RTSX_CARD_PULL_CTL3, 0xf5);
 		RTSX_WRITE(sc, RTSX_SD30_CMD_DRIVE_SEL, sc->rtsx_sd30_drive_sel_3v3);
 		/* Enable SD interrupt */
-		RTSX_WRITE(sc, RTSX_CARD_PAD_CTL, 0x05);
-//		RTSX_BITOP(sc, RTSX_EFUSE_CONTENT, 0xe0, 0x80);
-		RTSX_WRITE(sc, RTSX_FUNC_FORCE_CTL, 0x00);
+		RTSX_BITOP(sc, RTSX_CARD_PAD_CTL, RTSX_CD_DISABLE_MASK | RTSX_CD_AUTO_DISABLE,
+			   RTSX_CD_ENABLE);
+		RTSX_BITOP(sc, RTSX_FUNC_FORCE_CTL, 0x06, 0x00);
 	} else {
 		RTSX_WRITE(sc, RTSX_SD30_CMD_DRIVE_SEL, sc->rtsx_sd30_drive_sel_3v3);
 	}
@@ -911,7 +950,7 @@ rtsx_init(struct rtsx_softc *sc)
 		RTSX_CLR(sc, RTSX_LDO_PWR_SEL, RTSX_LDO_PWR_SEL_DV33);
 		RTSX_SET(sc, RTSX_LDO_PWR_SEL, RTSX_LDO_PWR_SEL_3V3);
 		/* Set default OLT blink period. */
-		RTSX_SET(sc, RTSX_OLT_LED_CTL, RTSX_OLT_LED_PERIOD);
+		RTSX_BITOP(sc, RTSX_OLT_LED_CTL, 0x0F, RTSX_OLT_LED_PERIOD);
 	}
 
 	return (0);
@@ -1148,7 +1187,7 @@ rtsx_bus_power_off(struct rtsx_softc *sc)
 		RTSX_BITOP(sc, RTSX_CARD_PWR_CTL, RTSX_SD_PWR_MASK | RTSX_PMOS_STRG_MASK,
 			   RTSX_SD_PWR_OFF | RTSX_PMOS_STRG_400mA);
 		RTSX_CLR(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_PWR_MASK);
-	} else if (sc->rtsx_flags & RTSX_F_8411B) {
+	} else if (sc->rtsx_flags & (RTSX_F_8411 | RTSX_F_8411B)) {
 		RTSX_BITOP(sc, RTSX_CARD_PWR_CTL, RTSX_BPP_POWER_MASK,
 			   RTSX_BPP_POWER_OFF);
 		RTSX_BITOP(sc, RTSX_LDO_CTL, RTSX_BPP_LDO_POWB,
@@ -1175,7 +1214,7 @@ rtsx_bus_power_off(struct rtsx_softc *sc)
 		} else {
 			RTSX_WRITE(sc, RTSX_CARD_PULL_CTL1, 0x65);
 			RTSX_WRITE(sc, RTSX_CARD_PULL_CTL2, 0x55);
-			RTSX_WRITE(sc, RTSX_CARD_PULL_CTL3, 0xd9);
+			RTSX_WRITE(sc, RTSX_CARD_PULL_CTL3, 0xd5);
 			RTSX_WRITE(sc, RTSX_CARD_PULL_CTL4, 0x59);
 			RTSX_WRITE(sc, RTSX_CARD_PULL_CTL5, 0x55);
 			RTSX_WRITE(sc, RTSX_CARD_PULL_CTL6, 0x15);
@@ -1223,7 +1262,7 @@ rtsx_bus_power_on(struct rtsx_softc *sc)
 			RTSX_WRITE(sc, RTSX_CARD_PULL_CTL2, 0xaa);
 			RTSX_WRITE(sc, RTSX_CARD_PULL_CTL3, 0xd9);
 			RTSX_WRITE(sc, RTSX_CARD_PULL_CTL4, 0x59);
-			RTSX_WRITE(sc, RTSX_CARD_PULL_CTL5, 0x59);
+			RTSX_WRITE(sc, RTSX_CARD_PULL_CTL5, 0x55);
 			RTSX_WRITE(sc, RTSX_CARD_PULL_CTL6, 0x15);
 		}
 	} else {
@@ -1239,7 +1278,7 @@ rtsx_bus_power_on(struct rtsx_softc *sc)
 	 * To avoid a current peak, enable card power in two phases
 	 * with a delay in between.
 	 */
-	if (sc->rtsx_flags & RTSX_F_8411B) {
+	if (sc->rtsx_flags & (RTSX_F_8411 | RTSX_F_8411B)) {
 		RTSX_BITOP(sc, RTSX_CARD_PWR_CTL, RTSX_BPP_POWER_MASK,
 			   RTSX_BPP_POWER_5_PERCENT_ON);
 		RTSX_BITOP(sc, RTSX_LDO_CTL, RTSX_BPP_LDO_POWB,
@@ -1271,7 +1310,7 @@ rtsx_bus_power_on(struct rtsx_softc *sc)
 		/* Full power. */
 		RTSX_BITOP(sc, RTSX_CARD_PWR_CTL, RTSX_SD_PWR_MASK, RTSX_SD_PWR_ON);
 		if (sc->rtsx_flags & RTSX_F_5209)
-			RTSX_BITOP(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_PWR_MASK,RTSX_LDO3318_ON);
+			RTSX_BITOP(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_PWR_MASK, RTSX_LDO3318_ON);
 		else if (sc->rtsx_flags & (RTSX_F_5227 | RTSX_F_5229 | RTSX_F_522A | RTSX_F_525A))
 			RTSX_BITOP(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_PWR_MASK,
 				   RTSX_LDO3318_VCC1 | RTSX_LDO3318_VCC2);
@@ -2151,7 +2190,7 @@ rtsx_mmcbr_switch_vccq(device_t bus, device_t child __unused)
 		} else if (sc->rtsx_flags & RTSX_F_525A) {
 			(void)rtsx_write(sc, RTSX_LDO_CONFIG2, RTSX_LDO_D3318_MASK, RTSX_LDO_D3318_33V);
 			(void)rtsx_write(sc, RTSX_SD_PAD_CTL, RTSX_SD_IO_USING_1V8, 0);
-		} else if (sc->rtsx_flags & RTSX_F_8411B) {
+		} else if (sc->rtsx_flags & (RTSX_F_8411 | RTSX_F_8411B)) {
 			(void)rtsx_write(sc, RTSX_SD30_CMD_DRIVE_SEL, RTSX_SD30_DRIVE_SEL_MASK, sc->rtsx_sd30_drive_sel_3v3);
 			(void)rtsx_write(sc, RTSX_LDO_CTL,
 					 (RTSX_BPP_ASIC_MASK << RTSX_BPP_SHIFT_8411) | RTSX_BPP_PAD_MASK,
