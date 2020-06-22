@@ -649,6 +649,7 @@ rtsx_init(struct rtsx_softc *sc)
 
 	sc->rtsx_card_drive_sel = RTSX_CARD_DRIVE_DEFAULT;
 	sc->rtsx_sd30_drive_sel_3v3 = RTSX_SD30_DRIVE_SEL_3V3;
+#if 0 /* Vendor settings */
 	if (sc->rtsx_flags & RTSX_F_5209) {
 		uint32_t reg;
 
@@ -741,6 +742,7 @@ rtsx_init(struct rtsx_softc *sc)
 		sc->rtsx_card_drive_sel = RTSX_RTL8411_CARD_DRIVE_DEFAULT;
 		sc->rtsx_sd30_drive_sel_3v3 = RTSX_DRIVER_TYPE_D;
 		reg = pci_read_config(sc->rtsx_dev, RTSX_PCR_SETTING_REG1, 4);
+		device_printf(sc->rtsx_dev, "reg = 0x%08x\n", reg);
 		if (reg & 0x1000000) {
 			sc->rtsx_sd30_drive_sel_3v3 = rtsx_map_sd_drive(reg & 0x03);
 //!!!			if (bootverbose)
@@ -749,6 +751,7 @@ rtsx_init(struct rtsx_softc *sc)
 			device_printf(sc->rtsx_dev, "pci_read_config() error\n");
 		}
 	}
+#endif /* Vendor settings */
 
 	if (bootverbose)
 		device_printf(sc->rtsx_dev, "rtsx_init() rtsx_flags = 0x%04x\n", sc->rtsx_flags);
@@ -773,6 +776,7 @@ rtsx_init(struct rtsx_softc *sc)
 		/* Some magic numbers from linux driver */
 		error = rtsx_write_phy(sc, 0x00, 0xB966);
 	} else if (sc->rtsx_flags & RTSX_F_5227) {
+		/*!!!*/
 		RTSX_CLR(sc, RTSX_PM_CTRL3, RTSX_D3_DELINK_MODE_EN);
 		/* Optimize RX sensitivity */
 		error = rtsx_write_phy(sc, 0x00, 0xBA42);
@@ -2180,7 +2184,8 @@ rtsx_mmcbr_switch_vccq(device_t bus, device_t child __unused)
 	};
 
 	if (vccq == 330) {
-		if (sc->rtsx_flags & RTSX_F_5227) { 
+		if (sc->rtsx_flags & RTSX_F_5227) {
+			/*!!!*/
 			(void)rtsx_write_phy(sc, 0x08, 0x4FE4);
 		} else if (sc->rtsx_flags & RTSX_F_5229) {
 			(void)rtsx_write(sc, RTSX_SD30_CMD_DRIVE_SEL, RTSX_SD30_DRIVE_SEL_MASK, sc->rtsx_sd30_drive_sel_3v3);
@@ -2448,12 +2453,6 @@ rtsx_attach(device_t dev)
 	}
 	pci_enable_busmaster(dev);
 
-	/* Initialize device */
-	if (rtsx_init(sc)) {
-		device_printf(dev, "Error during rtsx_init()\n");
-		goto destroy_rtsx_irq;
-	}
-
 	if (rtsx_read_cfg(sc, 0, RTSX_SDIOCFG_REG, &sdio_cfg) == 0) {
 		if ((sdio_cfg & RTSX_SDIOCFG_SDIO_ONLY) ||
 		    (sdio_cfg & RTSX_SDIOCFG_HAVE_SDIO))
@@ -2471,6 +2470,12 @@ rtsx_attach(device_t dev)
 	/* really giant? */
 	TIMEOUT_TASK_INIT(taskqueue_swi_giant, &sc->rtsx_card_delayed_task, 0,
 			  rtsx_card_task, sc);
+
+	/* Initialize device */
+	if (rtsx_init(sc)) {
+		device_printf(dev, "Error during rtsx_init()\n");
+		goto destroy_rtsx_irq;
+	}
 
 	/* 
 	 * Schedule a card detection as we won't get an interrupt
