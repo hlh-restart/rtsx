@@ -776,8 +776,9 @@ rtsx_init(struct rtsx_softc *sc)
 		/* Some magic numbers from linux driver */
 		error = rtsx_write_phy(sc, 0x00, 0xB966);
 	} else if (sc->rtsx_flags & RTSX_F_5227) {
-		/*!!!*/
-		RTSX_CLR(sc, RTSX_PM_CTRL3, RTSX_D3_DELINK_MODE_EN);
+		/*!!! added */
+//		RTSX_CLR(sc, RTSX_PM_CTRL3, RTSX_D3_DELINK_MODE_EN);
+
 		/* Optimize RX sensitivity */
 		error = rtsx_write_phy(sc, 0x00, 0xBA42);
 	} else if (sc->rtsx_flags & RTSX_F_5229) {
@@ -832,6 +833,7 @@ rtsx_init(struct rtsx_softc *sc)
 		 RTSX_FORCE_RST_CORE_EN | RTSX_NON_STICKY_RST_N_DBG);
 
 	/* Card driving select */
+	/*!!! added */
 	RTSX_WRITE(sc, RTSX_CARD_DRIVE_SEL, sc->rtsx_card_drive_sel);
 
 	/* Enable SSC clock. */
@@ -855,7 +857,7 @@ rtsx_init(struct rtsx_softc *sc)
 
 	/* Request clock by driving CLKREQ pin to zero. */
 	/*!!!*/
-//	RTSX_SET(sc, RTSX_PETXCFG, RTSX_PETXCFG_CLKREQ_PIN);
+	RTSX_SET(sc, RTSX_PETXCFG, RTSX_PETXCFG_CLKREQ_PIN);
 
 	/* Specific extra init */
 	if (sc->rtsx_flags & RTSX_F_5227) {

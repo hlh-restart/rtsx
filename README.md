@@ -49,7 +49,7 @@ TESTED ON:
  - RTS5227 under stable/11 and releng/12.1
    (HP ProBook 430 g2, Lenovo ThinkPad T450/T450s/X270, Fujitsu H730)
  - RTS5229 under releng/12.1 (Lenovo IdeaPad 120S-14IAP)
- - RTS522A under releng/12.1 and head (Intel NUC8i5BE, Lenovo ThinkPad P50s)
+ - RTS522A under releng/12.1 and head (Intel NUC8i5BE, ThinkPad P50s, ThinkPad T470p)
  - RTS525A under releng/12.1 (Dell Latitude E5570, Dell XPS 13 - model 9360)
  - RTL8411B under stable/12 and head
    (Acer Aspire E 15 E5-576-77W6, ACER ASPIRE 5 A515-51G-C97B)
@@ -57,7 +57,7 @@ TESTED ON:
 KNOWN BUGS:
 
  - Some configurations experience timeout/reset, but otherwise I/O work correctly.
- - On Lenovo P50 and Lenovo T470p, card detection and read-only switch are reversed.
+ - RTS522A on Lenovo P50s and Lenovo T470p, card detection and read-only switch are reversed.
    To adapt the driver: make -D RTSX_INVERSION.
 
 NOTE:
