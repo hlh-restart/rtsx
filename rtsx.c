@@ -602,7 +602,7 @@ rtsx_init(struct rtsx_softc *sc)
 {
 	uint32_t status;
 	uint8_t version;
-	int error = 0;
+	int error;
 
 	sc->rtsx_host.host_ocr = RTSX_SUPPORTED_VOLTAGE;
 	sc->rtsx_host.f_min = RTSX_SDCLK_250KHZ;
@@ -774,45 +774,48 @@ rtsx_init(struct rtsx_softc *sc)
 	/* Optimize phy */
 	if (sc->rtsx_flags & RTSX_F_5209) {
 		/* Some magic numbers from linux driver */
-		error = rtsx_write_phy(sc, 0x00, 0xB966);
+		if ((error = rtsx_write_phy(sc, 0x00, 0xB966)))
+			return (error);
 	} else if (sc->rtsx_flags & RTSX_F_5227) {
 		/*!!! added */
 //		RTSX_CLR(sc, RTSX_PM_CTRL3, RTSX_D3_DELINK_MODE_EN);
 
 		/* Optimize RX sensitivity */
-		error = rtsx_write_phy(sc, 0x00, 0xBA42);
+		if ((error = rtsx_write_phy(sc, 0x00, 0xBA42)))
+			return (error);
 	} else if (sc->rtsx_flags & RTSX_F_5229) {
 		/* Some magic numbers from linux driver */
-		error = rtsx_write_phy(sc, 0x00, 0xBA42);
+		if ((error = rtsx_write_phy(sc, 0x00, 0xBA42)))
+			return (error);
 	} else if (sc->rtsx_flags & RTSX_F_522A) {
 		RTSX_CLR(sc, RTSX_RTS522A_PM_CTRL3, RTSX_D3_DELINK_MODE_EN);
 		if (sc->rtsx_flags & RTSX_F_522A_TYPE_A) {
-			error = rtsx_write_phy(sc, RTSX_PHY_RCR2, RTSX_PHY_RCR2_INIT_27S);
-			if (error)
+			if ((error = rtsx_write_phy(sc, RTSX_PHY_RCR2, RTSX_PHY_RCR2_INIT_27S)))
 				return (error);
 		}
-		(void)rtsx_write_phy(sc, RTSX_PHY_RCR1, RTSX_PHY_RCR1_INIT_27S);
-		(void)rtsx_write_phy(sc, RTSX_PHY_FLD0, RTSX_PHY_FLD0_INIT_27S);
-		(void)rtsx_write_phy(sc, RTSX_PHY_FLD3, RTSX_PHY_FLD3_INIT_27S);
-		(void)rtsx_write_phy(sc, RTSX_PHY_FLD4, RTSX_PHY_FLD4_INIT_27S);
+		if ((error = rtsx_write_phy(sc, RTSX_PHY_RCR1, RTSX_PHY_RCR1_INIT_27S)))
+			return (error);
+		if ((error = rtsx_write_phy(sc, RTSX_PHY_FLD0, RTSX_PHY_FLD0_INIT_27S)))
+			return (error);
+		if ((error = rtsx_write_phy(sc, RTSX_PHY_FLD3, RTSX_PHY_FLD3_INIT_27S)))
+			return (error);
+		if ((error = rtsx_write_phy(sc, RTSX_PHY_FLD4, RTSX_PHY_FLD4_INIT_27S)))
+			return (error);
 	} else if (sc->rtsx_flags & RTSX_F_525A) {
-		(void)rtsx_write_phy(sc, RTSX__PHY_FLD0,
-				     RTSX__PHY_FLD0_CLK_REQ_20C | RTSX__PHY_FLD0_RX_IDLE_EN |
-				     RTSX__PHY_FLD0_BIT_ERR_RSTN | RTSX__PHY_FLD0_BER_COUNT |
-				     RTSX__PHY_FLD0_BER_TIMER | RTSX__PHY_FLD0_CHECK_EN);
-		(void)rtsx_write_phy(sc, RTSX__PHY_ANA03,
-				     RTSX__PHY_ANA03_TIMER_MAX | RTSX__PHY_ANA03_OOBS_DEB_EN |
-				     RTSX__PHY_CMU_DEBUG_EN);
+		if ((error = rtsx_write_phy(sc, RTSX__PHY_FLD0,
+					    RTSX__PHY_FLD0_CLK_REQ_20C | RTSX__PHY_FLD0_RX_IDLE_EN |
+					    RTSX__PHY_FLD0_BIT_ERR_RSTN | RTSX__PHY_FLD0_BER_COUNT |
+					    RTSX__PHY_FLD0_BER_TIMER | RTSX__PHY_FLD0_CHECK_EN)))
+			return (error);
+		if ((error = rtsx_write_phy(sc, RTSX__PHY_ANA03,
+					    RTSX__PHY_ANA03_TIMER_MAX | RTSX__PHY_ANA03_OOBS_DEB_EN |
+					    RTSX__PHY_CMU_DEBUG_EN)))
+			return (error);
 		if (sc->rtsx_flags & RTSX_F_525A_TYPE_A)
-			(void)rtsx_write_phy(sc, RTSX__PHY_REV0,
-					     RTSX__PHY_REV0_FILTER_OUT | RTSX__PHY_REV0_CDR_BYPASS_PFD |
-					     RTSX__PHY_REV0_CDR_RX_IDLE_BYPASS);
-	} else {
-		error = 0;
-	}
-	if (error) {
-		device_printf(sc->rtsx_dev, "Can't write phy register\n");
-		return (-1);
+			if ((error = rtsx_write_phy(sc, RTSX__PHY_REV0,
+						    RTSX__PHY_REV0_FILTER_OUT | RTSX__PHY_REV0_CDR_BYPASS_PFD |
+						    RTSX__PHY_REV0_CDR_RX_IDLE_BYPASS)))
+				return (error);
 	}
 
 	/* Set mcu_cnt to 7 to ensure data can be sampled properly */
