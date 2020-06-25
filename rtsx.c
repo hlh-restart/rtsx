@@ -879,7 +879,7 @@ rtsx_init(struct rtsx_softc *sc)
 		RTSX_WRITE(sc, RTSX_SD30_CMD_DRIVE_SEL, driving_3v3[sc->rtsx_sd30_drive_sel_3v3][1]);
 		RTSX_WRITE(sc, RTSX_SD30_DAT_DRIVE_SEL, driving_3v3[sc->rtsx_sd30_drive_sel_3v3][2]);
 		/* Configure force_clock_req */
-		if (sc->rtsx_flags | RTSX_REVERSE_SOCKET)
+		if (sc->rtsx_flags & RTSX_REVERSE_SOCKET)
 			RTSX_BITOP(sc, RTSX_PETXCFG, 0xB8, 0xB8);
 		else
 			RTSX_BITOP(sc, RTSX_PETXCFG, 0xB8, 0x88);
@@ -906,7 +906,7 @@ rtsx_init(struct rtsx_softc *sc)
 		RTSX_WRITE(sc, RTSX_SD30_CMD_DRIVE_SEL, driving_3v3[sc->rtsx_sd30_drive_sel_3v3][1]);
 		RTSX_WRITE(sc, RTSX_SD30_DAT_DRIVE_SEL, driving_3v3[sc->rtsx_sd30_drive_sel_3v3][2]);
 		/* Configure force_clock_req */
-		if (sc->rtsx_flags | RTSX_REVERSE_SOCKET)
+		if (sc->rtsx_flags & RTSX_REVERSE_SOCKET)
 			RTSX_BITOP(sc, RTSX_PETXCFG, 0xB8, 0xB8);
 		else
 			RTSX_BITOP(sc, RTSX_PETXCFG, 0xB8, 0x88);
