@@ -649,12 +649,11 @@ rtsx_init(struct rtsx_softc *sc)
 
 	sc->rtsx_card_drive_sel = RTSX_CARD_DRIVE_DEFAULT;
 	sc->rtsx_sd30_drive_sel_3v3 = RTSX_SD30_DRIVE_SEL_3V3;
-#if 0 /* Vendor settings */
 	if (sc->rtsx_flags & RTSX_F_5209) {
 		uint32_t reg;
 
 		reg = pci_read_config(sc->rtsx_dev, RTSX_PCR_SETTING_REG2, 4);
-		if (reg & 0x80) {
+		if (!(reg & 0x80)) {
 			sc->rtsx_card_drive_sel = (reg >> 8) & 0x3F;
 			sc->rtsx_sd30_drive_sel_3v3 = reg & 0x07;
 //!!!			if (bootverbose)
@@ -668,7 +667,7 @@ rtsx_init(struct rtsx_softc *sc)
 
 		sc->rtsx_sd30_drive_sel_3v3 = RTSX_DRIVER_TYPE_B;
 		reg = pci_read_config(sc->rtsx_dev, RTSX_PCR_SETTING_REG1, 4);
-		if (reg & 0x1000000) {
+		if (!(reg & 0x1000000)) {
 			sc->rtsx_card_drive_sel &= 0x3F;
 			sc->rtsx_card_drive_sel |= ((reg >> 25) & 0x01) << 6;
 			reg = pci_read_config(sc->rtsx_dev, RTSX_PCR_SETTING_REG2, 4);
@@ -687,7 +686,7 @@ rtsx_init(struct rtsx_softc *sc)
 		uint32_t reg;
 
 		reg = pci_read_config(sc->rtsx_dev, RTSX_PCR_SETTING_REG1, 4);
-		if (reg & 0x1000000) {
+		if (!(reg & 0x1000000)) {
 			sc->rtsx_card_drive_sel &= 0x3F;
 			sc->rtsx_card_drive_sel |= ((reg >> 25) & 0x01) << 6;
 			reg = pci_read_config(sc->rtsx_dev, RTSX_PCR_SETTING_REG2, 4);
@@ -702,7 +701,7 @@ rtsx_init(struct rtsx_softc *sc)
 		uint32_t reg;
 
 		reg = pci_read_config(sc->rtsx_dev, RTSX_PCR_SETTING_REG1, 4);
-		if (reg & 0x1000000) {
+		if ((reg & 0x1000000)) {
 			sc->rtsx_card_drive_sel &= 0x3F;
 			sc->rtsx_card_drive_sel |= ((reg >> 25) & 0x01) << 6;
 			reg = pci_read_config(sc->rtsx_dev, RTSX_PCR_SETTING_REG2, 4);
@@ -743,7 +742,7 @@ rtsx_init(struct rtsx_softc *sc)
 		sc->rtsx_sd30_drive_sel_3v3 = RTSX_DRIVER_TYPE_D;
 		reg = pci_read_config(sc->rtsx_dev, RTSX_PCR_SETTING_REG1, 4);
 		device_printf(sc->rtsx_dev, "reg = 0x%08x\n", reg);
-		if (reg & 0x1000000) {
+		if (!(reg & 0x1000000)) {
 			sc->rtsx_sd30_drive_sel_3v3 = rtsx_map_sd_drive(reg & 0x03);
 //!!!			if (bootverbose)
 			device_printf(sc->rtsx_dev, "sd30_drive_sel_3v3 = 0x%02x\n", sc->rtsx_sd30_drive_sel_3v3);
@@ -751,7 +750,6 @@ rtsx_init(struct rtsx_softc *sc)
 			device_printf(sc->rtsx_dev, "pci_read_config() error\n");
 		}
 	}
-#endif /* Vendor settings */
 
 	if (bootverbose)
 		device_printf(sc->rtsx_dev, "rtsx_init() rtsx_flags = 0x%04x\n", sc->rtsx_flags);
