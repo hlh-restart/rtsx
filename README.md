@@ -38,10 +38,11 @@ HISTORY:
  - write operation completed with Jesper Schmitz Mouridsen <jsm@FreeBSD.org>.
  - patch for RTS525A from Lutz Bichler <Lutz.Bichler@gmail.com>
  - add read-only detection
+ - implement suspend and resume (at least on Acer Aspire E 15 E5-576-77W6)
 
 TODO:
 
- - Implement suspend and resume
+ - More testing please!
 
 TESTED ON:
 
