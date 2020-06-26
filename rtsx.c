@@ -1086,6 +1086,7 @@ rtsx_set_sd_timing(struct rtsx_softc *sc, enum mmc_bus_timing timing)
 			   RTSX_SD20_TX_SEL_MASK, RTSX_SD20_TX_14_AHEAD);
 		RTSX_BITOP(sc, RTSX_SD_SAMPLE_POINT_CTL,
 			   RTSX_SD20_RX_SEL_MASK, RTSX_SD20_RX_14_DELAY);
+		break;
 	default:
 		RTSX_BITOP(sc, RTSX_SD_CFG1, 0x0C, RTSX_SD20_MODE);
 		RTSX_BITOP(sc, RTSX_CLK_CTL, RTSX_CLK_LOW_FREQ, RTSX_CLK_LOW_FREQ);
