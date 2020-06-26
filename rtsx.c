@@ -115,6 +115,7 @@ struct rtsx_softc {
 	int8_t		rtsx_ios_bus_width;	/* current host.ios.bus_width */
 	int32_t		rtsx_ios_clock;		/* current host.ios.clock */
 	int8_t		rtsx_ios_power_mode;	/* current host.ios.power mode */
+	int8_t		rtsx_ios_timing;	/* current host.ios.timing */	
 	uint8_t		rtsx_read_only;		/* card read only status */
 	uint8_t		rtsx_card_drive_sel;	/* value for RTSX_CARD_DRIVE_SEL */
 	uint8_t		rtsx_sd30_drive_sel_3v3;/* value for RTSX_SD30_DRIVE_SEL */
@@ -170,6 +171,7 @@ static int	rtsx_read(struct rtsx_softc *, uint16_t, uint8_t *);
 static int	rtsx_read_cfg(struct rtsx_softc *sc, uint8_t func, uint16_t addr, uint32_t *val);
 static int	rtsx_write(struct rtsx_softc *sc, uint16_t addr, uint8_t mask, uint8_t val);
 static int	rtsx_write_phy(struct rtsx_softc *sc, uint8_t addr, uint16_t val);
+static int	rtsx_set_sd_timing(struct rtsx_softc *sc, enum mmc_bus_timing timing);
 static int	rtsx_set_sd_clock(struct rtsx_softc *sc, uint32_t freq);
 static int	rtsx_stop_sd_clock(struct rtsx_softc *sc);
 static int	rtsx_switch_sd_clock(struct rtsx_softc *sc, uint8_t n, int div, int mcu);
@@ -741,7 +743,6 @@ rtsx_init(struct rtsx_softc *sc)
 		sc->rtsx_card_drive_sel = RTSX_RTL8411_CARD_DRIVE_DEFAULT;
 		sc->rtsx_sd30_drive_sel_3v3 = RTSX_DRIVER_TYPE_D;
 		reg = pci_read_config(sc->rtsx_dev, RTSX_PCR_SETTING_REG1, 4);
-		device_printf(sc->rtsx_dev, "reg = 0x%08x\n", reg);
 		if (!(reg & 0x1000000)) {
 			sc->rtsx_sd30_drive_sel_3v3 = rtsx_map_sd_drive(reg & 0x03);
 //!!!			if (bootverbose)
@@ -1067,6 +1068,37 @@ rtsx_write_phy(struct rtsx_softc *sc, uint8_t addr, uint16_t val)
 	return ((tries == 0) ? ETIMEDOUT : 0);
 }
 
+static int
+rtsx_set_sd_timing(struct rtsx_softc *sc, enum mmc_bus_timing timing)
+{
+
+	if (bootverbose)
+		device_printf(sc->rtsx_dev, "rtsx_set_sd_timing(%u)\n", timing);
+
+	switch (timing) {
+	case bus_timing_hs:
+		RTSX_BITOP(sc, RTSX_SD_CFG1, 0x0C, RTSX_SD20_MODE);
+		RTSX_BITOP(sc, RTSX_CLK_CTL, RTSX_CLK_LOW_FREQ, RTSX_CLK_LOW_FREQ);
+		RTSX_BITOP(sc, RTSX_CARD_CLK_SOURCE, 0xff,
+			   RTSX_CRC_FIX_CLK | RTSX_SD30_VAR_CLK0 | RTSX_SAMPLE_VAR_CLK1);
+		RTSX_BITOP(sc, RTSX_CLK_CTL, RTSX_CLK_LOW_FREQ, 0x00);
+		RTSX_BITOP(sc, RTSX_SD_PUSH_POINT_CTL,
+			   RTSX_SD20_TX_SEL_MASK, RTSX_SD20_TX_14_AHEAD);
+		RTSX_BITOP(sc, RTSX_SD_SAMPLE_POINT_CTL,
+			   RTSX_SD20_RX_SEL_MASK, RTSX_SD20_RX_14_DELAY);
+	default:
+		RTSX_BITOP(sc, RTSX_SD_CFG1, 0x0C, RTSX_SD20_MODE);
+		RTSX_BITOP(sc, RTSX_CLK_CTL, RTSX_CLK_LOW_FREQ, RTSX_CLK_LOW_FREQ);
+		RTSX_BITOP(sc, RTSX_CARD_CLK_SOURCE, 0xff,
+			   RTSX_CRC_FIX_CLK | RTSX_SD30_VAR_CLK0 | RTSX_SAMPLE_VAR_CLK1);
+		RTSX_BITOP(sc, RTSX_CLK_CTL, RTSX_CLK_LOW_FREQ, 0x00);
+		RTSX_BITOP(sc, RTSX_SD_PUSH_POINT_CTL, 0xFF, RTSX_SD20_TX_NEG_EDGE);
+		RTSX_BITOP(sc, RTSX_SD_SAMPLE_POINT_CTL, RTSX_SD20_RX_SEL_MASK, RTSX_SD20_RX_POS_EDGE);
+	}
+
+	return (0);
+}
+
 /*
  * Set or change SDCLK frequency or disable the SD clock.
  * Return zero on success.
@@ -1328,6 +1360,8 @@ rtsx_bus_power_on(struct rtsx_softc *sc)
 	/* Enable SD card output */
 	RTSX_WRITE(sc, RTSX_CARD_OE, RTSX_SD_OUTPUT_EN);
 
+	DELAY(200);
+
 	return (0);
 }
 
@@ -1503,17 +1537,6 @@ rtsx_soft_reset(struct rtsx_softc *sc)
 	uint32_t status;
 
 	device_printf(sc->rtsx_dev, "Soft reset\n");
-
-	/* Enable interrupt write-clear (default is read-clear). */
-	(void)rtsx_write(sc, RTSX_NFTS_TX_CTRL, RTSX_INT_READ_CLR, 0);
-
-	/* Clear any pending interrupts. */
-	status = READ4(sc, RTSX_BIPR);
-	WRITE4(sc, RTSX_BIPR, status);
-
-	/* Enable interrupts. */
-	WRITE4(sc, RTSX_BIER,
-	       RTSX_TRANS_OK_INT_EN | RTSX_TRANS_FAIL_INT_EN | RTSX_SD_INT_EN);
 
 	/* Stop command transfer. */
 	WRITE4(sc, RTSX_HCBCTLR, RTSX_STOP_CMD);
@@ -2074,6 +2097,7 @@ rtsx_write_ivar(device_t bus, device_t child, int which, uintptr_t value)
 		break;
 	case MMCBR_IVAR_TIMING:			/* ivar 14 - 0 = normal, 1 = timing_hs, ... */
 		sc->rtsx_host.ios.timing = value;
+		sc->rtsx_ios_timing = -1;	/* To be updated on next rtsx_mmcbr_update_ios() */
 		break;
 	/* These are read-only */
 	case MMCBR_IVAR_F_MIN:			/* ivar  4 */
@@ -2160,6 +2184,13 @@ rtsx_mmcbr_update_ios(device_t bus, device_t child)
 		}
 	}
 
+	/* if MMCBR_IVAR_TIMING updated */
+	if (sc->rtsx_ios_timing < 0) {
+		sc->rtsx_ios_timing = ios->timing;
+		if ((error = rtsx_set_sd_timing(sc, ios->timing)))
+			return (error);
+	}
+
 	return (0);
 }
 
@@ -2204,7 +2235,7 @@ rtsx_mmcbr_switch_vccq(device_t bus, device_t child __unused)
 					 (RTSX_BPP_ASIC_MASK << RTSX_BPP_SHIFT_8411) | RTSX_BPP_PAD_MASK,
 					 (RTSX_BPP_ASIC_3V3 << RTSX_BPP_SHIFT_8411) | RTSX_BPP_PAD_3V3);
 		}
-		DELAY(200);
+		DELAY(300);
 	}
 
 	if (bootverbose)
@@ -2265,7 +2296,14 @@ rtsx_mmcbr_request(device_t bus, device_t child __unused, struct mmc_request *re
 			      cmd->data != NULL ? (unsigned int)cmd->data->len : 0,
 			      cmd->data != NULL ? cmd->data->flags : 0);
 
-	/* Refuse SDIO probe if the chip doesn't support SDIO. */
+	/* Check if card present */
+	if (!ISSET(sc->rtsx_flags, RTSX_F_CARD_PRESENT)) {
+		cmd->error = MMC_ERR_NO_MEMORY;
+		error = MMC_ERR_NO_MEMORY;
+		goto done;
+	}
+
+	/* Refuse SDIO probe if the chip doesn't support SDIO */
 	if (cmd->opcode == IO_SEND_OP_COND &&
 	    !ISSET(sc->rtsx_flags, RTSX_F_SDIO_SUPPORT)) {
 		cmd->error = MMC_ERR_INVALID;
