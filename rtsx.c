@@ -167,6 +167,7 @@ static int	rtsx_led_disable(struct rtsx_softc *sc);
 #endif /* For led */
 static int	rtsx_init(struct rtsx_softc *sc);
 static int	rtsx_map_sd_drive(int index);
+static int	rtsx_rts5227_fill_driving(struct rtsx_softc *sc);
 static int	rtsx_read(struct rtsx_softc *, uint16_t, uint8_t *);
 static int	rtsx_read_cfg(struct rtsx_softc *sc, uint8_t func, uint16_t addr, uint32_t *val);
 static int	rtsx_write(struct rtsx_softc *sc, uint16_t addr, uint8_t mask, uint8_t val);
@@ -868,15 +869,8 @@ rtsx_init(struct rtsx_softc *sc)
 		/* Configure OBFF */
 		RTSX_BITOP(sc, RTSX_OBFF_CFG, RTSX_OBFF_EN_MASK, RTSX_OBFF_ENABLE);
 		/* Configure driving */
-		u_char driving_3v3[4][3] = {
-					    {0x13, 0x13, 0x13},
-					    {0x96, 0x96, 0x96},
-					    {0x7F, 0x7F, 0x7F},
-					    {0x96, 0x96, 0x96},
-		};
-		RTSX_WRITE(sc, RTSX_SD30_CLK_DRIVE_SEL, driving_3v3[sc->rtsx_sd30_drive_sel_3v3][0]);
-		RTSX_WRITE(sc, RTSX_SD30_CMD_DRIVE_SEL, driving_3v3[sc->rtsx_sd30_drive_sel_3v3][1]);
-		RTSX_WRITE(sc, RTSX_SD30_DAT_DRIVE_SEL, driving_3v3[sc->rtsx_sd30_drive_sel_3v3][2]);
+		if ((error = rtsx_rts5227_fill_driving(sc)))
+			return (error);
 		/* Configure force_clock_req */
 		if (sc->rtsx_flags & RTSX_REVERSE_SOCKET)
 			RTSX_BITOP(sc, RTSX_PETXCFG, 0xB8, 0xB8);
@@ -895,15 +889,8 @@ rtsx_init(struct rtsx_softc *sc)
 		/* Configure OBFF */
 		RTSX_BITOP(sc, RTSX_OBFF_CFG, RTSX_OBFF_EN_MASK, RTSX_OBFF_ENABLE);
 		/* Configure driving */
-		u_char driving_3v3[4][3] = {
-					    {0x13, 0x13, 0x13},
-					    {0x96, 0x96, 0x96},
-					    {0x7F, 0x7F, 0x7F},
-					    {0x96, 0x96, 0x96},
-		};
-		RTSX_WRITE(sc, RTSX_SD30_CLK_DRIVE_SEL, driving_3v3[sc->rtsx_sd30_drive_sel_3v3][0]);
-		RTSX_WRITE(sc, RTSX_SD30_CMD_DRIVE_SEL, driving_3v3[sc->rtsx_sd30_drive_sel_3v3][1]);
-		RTSX_WRITE(sc, RTSX_SD30_DAT_DRIVE_SEL, driving_3v3[sc->rtsx_sd30_drive_sel_3v3][2]);
+		if ((error = rtsx_rts5227_fill_driving(sc)))
+			return (error);
 		/* Configure force_clock_req */
 		if (sc->rtsx_flags & RTSX_REVERSE_SOCKET)
 			RTSX_BITOP(sc, RTSX_PETXCFG, 0xB8, 0xB8);
@@ -975,6 +962,23 @@ rtsx_map_sd_drive(int index)
 		 0x03	/* Type B */
 		};
 	return (sd_drive[index]);
+}
+
+/* For voltage 3v3 */
+static int
+rtsx_rts5227_fill_driving(struct rtsx_softc *sc)
+{
+	u_char driving_3v3[4][3] = {
+				    {0x13, 0x13, 0x13},
+				    {0x96, 0x96, 0x96},
+				    {0x7F, 0x7F, 0x7F},
+				    {0x96, 0x96, 0x96},
+		};
+	RTSX_WRITE(sc, RTSX_SD30_CLK_DRIVE_SEL, driving_3v3[sc->rtsx_sd30_drive_sel_3v3][0]);
+	RTSX_WRITE(sc, RTSX_SD30_CMD_DRIVE_SEL, driving_3v3[sc->rtsx_sd30_drive_sel_3v3][1]);
+	RTSX_WRITE(sc, RTSX_SD30_DAT_DRIVE_SEL, driving_3v3[sc->rtsx_sd30_drive_sel_3v3][2]);
+
+	return (0);
 }
 
 static int
@@ -2223,12 +2227,16 @@ rtsx_mmcbr_switch_vccq(device_t bus, device_t child __unused)
 			/*!!!*/
 			if ((error = rtsx_write_phy(sc, 0x08, 0x4FE4)))
 				return (error);
+			if ((error = rtsx_rts5227_fill_driving(sc)))
+				return (error);
 		} else if (sc->rtsx_flags & RTSX_F_5229) {
 			RTSX_BITOP(sc, RTSX_SD30_CMD_DRIVE_SEL, RTSX_SD30_DRIVE_SEL_MASK, sc->rtsx_sd30_drive_sel_3v3);
 			if ((error = rtsx_write_phy(sc, 0x08, 0x4FE4)))
 				return (error);
 		} else if (sc->rtsx_flags & RTSX_F_522A) {
 			if ((error = rtsx_write_phy(sc, 0x08, 0x57E4)))
+				return (error);
+			if ((error = rtsx_rts5227_fill_driving(sc)))
 				return (error);
 		} else if (sc->rtsx_flags & RTSX_F_525A) {
 			RTSX_BITOP(sc, RTSX_LDO_CONFIG2, RTSX_LDO_D3318_MASK, RTSX_LDO_D3318_33V);
