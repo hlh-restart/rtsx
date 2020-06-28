@@ -1,5 +1,5 @@
 
-An attempt on porting OpenBSD rtsx driver to FreeBSD.
+# A port of OpenBSD rtsx driver to FreeBSD
 
 Based on https://www.freebsd.org/doc/en_US.ISO8859-1/books/arch-handbook/pci.html example,
 
@@ -7,44 +7,45 @@ and https://lists.freebsd.org/pipermail/freebsd-hackers/2018-April/052520.html
 
 --------------------------------------------------------------------------
 
-HOWTO COMPILE AND INSTALL:
+#### HOWTO COMPILE AND INSTALL:
 
-Place source in /usr/src/sys/dev/rtsx
+Place source in `/usr/src/sys/dev/rtsx`
 
+```
+make clean
 make
-
 make install
+```
 
-HOWTO RUN:
-
+#### HOWTO RUN:
+```
 kldload mmc
-
 kldload mmcsd
-
 kldload rtsx
-
-sysctl debug.bootverbose=1 for debugging
-
-HISTORY:
+```
+For debugging:
+ `sysctl debug.bootverbose=1`
+ 
+#### HISTORY:
 
  - probe of Vendor ID: 0x10ec - Device ID: 0x5287
  - attach (and dev initialization...)
  - detect card inserted / ejected
  - get card information
  - detach (at least kldunload)
- - Patch to add detection of SD card insertion/removal (from Gary Jennejohn <gj@freebsd.org>)
- - Patch to read SCR and STATUS (CMD51 & CMD13) (from Jesper Schmitz Mouridsen <jsm@FreeBSD.org>)
- - Patch to allow successful read operations (from Jesper Schmitz Mouridsen <jsm@FreeBSD.org>)
+ - patch to add detection of SD card insertion/removal (from Gary Jennejohn <gj@freebsd.org>)
+ - patch to read SCR and STATUS (CMD51 & CMD13) (from Jesper Schmitz Mouridsen <jsm@FreeBSD.org>)
+ - patch to allow successful read operations (from Jesper Schmitz Mouridsen <jsm@FreeBSD.org>)
  - write operation completed with Jesper Schmitz Mouridsen <jsm@FreeBSD.org>.
  - patch for RTS525A from Lutz Bichler <Lutz.Bichler@gmail.com>
  - add read-only detection
- - implement suspend and resume (at least on Acer Aspire E 15 E5-576-77W6)
+ - add suspend and resume (at least on Acer Aspire E 15 E5-576-77W6)
 
-TODO:
+#### TODO:
 
- - More testing please!
+ - **More testing please!**
 
-TESTED ON:
+#### TESTED ON:
 
  - RTS5209 under head (Lenovo ThinkPad L520, Packard Bell EN LV44HC i3-2328M)
  - RTS5227 under stable/11 and releng/12.1
@@ -55,12 +56,12 @@ TESTED ON:
  - RTL8411B under stable/12 and head
    (Acer Aspire E 15 E5-576-77W6, ACER ASPIRE 5 A515-51G-C97B)
 
-KNOWN BUGS:
+#### KNOWN BUGS:
 
  - Some configurations experience timeout/reset, but otherwise I/O work correctly.
  - RTS522A on Lenovo P50s and Lenovo T470p, card detection and read-only switch are reversed.
    To adapt the driver: make -D RTSX_INVERSION.
 
-NOTE:
+#### NOTE:
  
  - See https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=204521
