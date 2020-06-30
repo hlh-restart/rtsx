@@ -228,13 +228,9 @@ static int	rtsx_mmcbr_release_host(device_t bus, device_t child __unused);
 #define	RTSX_MAX_DATA_BLKLEN	512
 
 #define	RTSX_DMA_ALIGN		4
-#define	RTSX_DMA_BLOCK_SIZE	4096
-
-#define	RTSX_DMA_MAX_SEGSIZE	0x80000
 #define	RTSX_HOSTCMD_MAX	256
-#define	RTSX_HOSTCMD_BUFSIZE	(sizeof(uint32_t) * RTSX_HOSTCMD_MAX)
+#define	RTSX_DMA_CMD_BIFSIZE	(sizeof(uint32_t) * RTSX_HOSTCMD_MAX)
 #define	RTSX_DMA_DATA_BUFSIZE	MAXPHYS
-#define	RTSX_ADMA_DESC_SIZE	(sizeof(uint64_t) * SDMMC_MAXNSEGS)
 
 #define	ISSET(t, f) ((t) & (f))
 
@@ -283,7 +279,7 @@ static int	rtsx_mmcbr_release_host(device_t bus, device_t child __unused);
  * The command buffer contains a command queue for the host controller,
  * which describes SD/MMC commands to run, and other parameters. The chip
  * runs the command queue when a special bit in the RTSX_HCBAR register is
- * set and signals completion with the TRANS_OK interrupt.
+ * set and signals completion with the RTSX_TRANS_OK_INT interrupt.
  * Each command is encoded as a 4 byte sequence containing command number
  * (read, write, or check a host controller register), a register address,
  * and a data bit-mask and value.
@@ -292,7 +288,7 @@ static int	rtsx_mmcbr_release_host(device_t bus, device_t child __unused);
  *
  * The data buffer is used for transfer longer than 512. Data transfer is
  * controlled via the RTSX_HDBAR register and completion is signalled by
- * the TRANS_OK interrupt.
+ * the RTSX_TRANS_OK_INT interrupt.
  *
  * The chip is unable to perform DMA above 4GB.
  */
@@ -306,8 +302,8 @@ rtsx_dma_alloc(struct rtsx_softc *sc) {
 	    BUS_SPACE_MAXADDR_32BIT,	/* lowaddr */
 	    BUS_SPACE_MAXADDR,		/* highaddr */
 	    NULL, NULL,			/* filter, filterarg */
-	    RTSX_DMA_BLOCK_SIZE, 1,	/* maxsize, nsegments */
-	    RTSX_DMA_BLOCK_SIZE,	/* maxsegsize */
+	    RTSX_DMA_CMD_BIFSIZE, 1,	/* maxsize, nsegments */
+	    RTSX_DMA_CMD_BIFSIZE,	/* maxsegsize */
 	    0,				/* flags */
 	    NULL, NULL,			/* lockfunc, lockarg */
 	    &sc->rtsx_cmd_dma_tag);
@@ -329,7 +325,7 @@ rtsx_dma_alloc(struct rtsx_softc *sc) {
 	error = bus_dmamap_load(sc->rtsx_cmd_dma_tag,	/* DMA tag */
 	    sc->rtsx_cmd_dmamap,	/* DMA map */
 	    sc->rtsx_cmd_dmamem,	/* KVA pointer to be mapped */
-	    RTSX_HOSTCMD_BUFSIZE,	/* size of buffer */
+	    RTSX_DMA_CMD_BIFSIZE,	/* size of buffer */
 	    rtsx_dmamap_cb,		/* callback */
 	    &sc->rtsx_cmd_buffer,	/* first arg of callback */
 	    0);			/* flags */
@@ -2534,6 +2530,7 @@ rtsx_attach(device_t dev)
 	 * Schedule a card detection as we won't get an interrupt
 	 * if the card is inserted when we attach
 	 */
+	DELAY(300);
 	if (rtsx_is_card_present(sc))
 		device_printf(sc->rtsx_dev, "Card present\n");
 	else
