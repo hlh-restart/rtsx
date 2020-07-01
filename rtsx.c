@@ -2530,7 +2530,7 @@ rtsx_attach(device_t dev)
 	 * Schedule a card detection as we won't get an interrupt
 	 * if the card is inserted when we attach
 	 */
-	DELAY(300);
+	DELAY(500);
 	if (rtsx_is_card_present(sc))
 		device_printf(sc->rtsx_dev, "Card present\n");
 	else
