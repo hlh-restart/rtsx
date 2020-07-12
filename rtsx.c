@@ -774,7 +774,7 @@ rtsx_init(struct rtsx_softc *sc)
 			return (error);
 	} else if (sc->rtsx_flags & RTSX_F_5227) {
 		/*!!! added */
-//		RTSX_CLR(sc, RTSX_PM_CTRL3, RTSX_D3_DELINK_MODE_EN);
+		RTSX_CLR(sc, RTSX_PM_CTRL3, RTSX_D3_DELINK_MODE_EN);
 
 		/* Optimize RX sensitivity */
 		if ((error = rtsx_write_phy(sc, 0x00, 0xBA42)))
@@ -855,8 +855,8 @@ rtsx_init(struct rtsx_softc *sc)
 	RTSX_CLR(sc, RTSX_RCCTL, RTSX_RCCTL_F_2M);
 
 	/* Request clock by driving CLKREQ pin to zero. */
-	/*!!!*/
-	RTSX_SET(sc, RTSX_PETXCFG, RTSX_PETXCFG_CLKREQ_PIN);
+	/*!!! only in OpenBSD */
+//	RTSX_SET(sc, RTSX_PETXCFG, RTSX_PETXCFG_CLKREQ_PIN);
 
 	/* Specific extra init */
 	if (sc->rtsx_flags & RTSX_F_5227) {
@@ -1727,14 +1727,11 @@ rtsx_xfer_short(struct rtsx_softc *sc, struct mmc_command *cmd)
 				      ptr[0], ptr[1], ptr[2], ptr[3],
 				      ptr[4], ptr[5], ptr[6], ptr[7]);
 		}
-
 	} else {
-		error = rtsx_send_req_get_resp(sc, cmd);
-		if (error)
+		if ((error = rtsx_send_req_get_resp(sc, cmd)))
 			return (error);
 
-		error = rtsx_write_ppbuf(sc, cmd);
-		if (error)
+		if ((error = rtsx_write_ppbuf(sc, cmd)))
 			return (error);
 
 		sc->rtsx_cmd_index = 0;
@@ -1881,8 +1878,7 @@ rtsx_xfer(struct rtsx_softc *sc, struct mmc_command *cmd)
 	}
 
 	if (!read) {
-		error = rtsx_send_req_get_resp(sc, cmd);
-		if (error)
+		if ((error = rtsx_send_req_get_resp(sc, cmd)))
 			return (error);
 	}
 
@@ -2093,7 +2089,7 @@ rtsx_write_ivar(device_t bus, device_t child, int which, uintptr_t value)
 		sc->rtsx_host.ios.vdd = value;
 		break;
 	case MMCBR_IVAR_VCCQ:			/* ivar 12 - signaling: 0 = 1.20V, 1 = 1.80V, 2 = 3.30V */
-		sc->rtsx_host.ios.vccq = value;
+		sc->rtsx_host.ios.vccq = value; /* rtsx_mmcbr_switch_vccq() will be called by mmc.c */
 		break;
 	case MMCBR_IVAR_TIMING:			/* ivar 14 - 0 = normal, 1 = timing_hs, ... */
 		sc->rtsx_host.ios.timing = value;
@@ -2217,7 +2213,7 @@ rtsx_mmcbr_switch_vccq(device_t bus, device_t child __unused)
 		vccq = 330;
 		break;
 	};
-
+	/* It seems it is always vccq_330 */
 	if (vccq == 330) {
 		if (sc->rtsx_flags & RTSX_F_5227) {
 			/*!!!*/
@@ -2324,8 +2320,7 @@ rtsx_mmcbr_request(device_t bus, device_t child __unused, struct mmc_request *re
 		DELAY(200);
 		error = rtsx_send_req_get_resp(sc, cmd);
 	} else if (cmd->data->len <= 512) {
-		error = rtsx_xfer_short(sc, cmd);
-		if (error) {
+		if ((error = rtsx_xfer_short(sc, cmd))) {
 			uint8_t stat1;
 			if (rtsx_read(sc, RTSX_SD_STAT1, &stat1) == 0 &&
 			    (stat1 & RTSX_SD_CRC_ERR)) {
@@ -2334,8 +2329,7 @@ rtsx_mmcbr_request(device_t bus, device_t child __unused, struct mmc_request *re
 			}
 		}
 	} else {
-		error = rtsx_xfer(sc, cmd);
-		if (error) {
+		if ((error = rtsx_xfer(sc, cmd))) {
 			uint8_t stat1;
 			if (rtsx_read(sc, RTSX_SD_STAT1, &stat1) == 0 &&
 			    (stat1 & RTSX_SD_CRC_ERR)) {

@@ -58,7 +58,8 @@ For debugging:
 
 #### KNOWN BUGS:
 
- - Some configurations experience timeout/reset, but otherwise I/O work correctly.
+ - Some configurations experience timeout/reset during card detection. Removing and reinserting
+   the card solve the problem. Otherwise I/O work correctly.
  - RTS522A on Lenovo P50s and Lenovo T470p, card detection and read-only switch are reversed.
    To adapt the driver: make -D RTSX_INVERSION.
 
