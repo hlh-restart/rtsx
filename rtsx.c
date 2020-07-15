@@ -72,10 +72,11 @@ __FBSDID("$FreeBSD$");
 #define	RTSX_F_525A		0x0100
 #define	RTSX_F_525A_TYPE_A	0x0200
 #define	RTSX_F_5249		0x0400
-#define	RTSX_F_8411		0x0800
-#define	RTSX_F_8411B		0x1000
-#define	RTSX_F_8411B_QFN48	0x2000
-#define	RTSX_REVERSE_SOCKET	0x4000
+#define	RTSX_F_8402		0x0800
+#define	RTSX_F_8411		0x1000
+#define	RTSX_F_8411B		0x2000
+#define	RTSX_F_8411B_QFN48	0x4000
+#define	RTSX_REVERSE_SOCKET	0x8000
 
 #define	RTSX_NREG ((0xFDAE - 0xFDA0) + (0xFD69 - 0xFD52) + (0xFE34 - 0xFE20))
 #define	SDMMC_MAXNSEGS	((MAXPHYS / PAGE_SIZE) + 1)
@@ -130,24 +131,24 @@ static const struct rtsx_device {
 	const char	*desc;
 } rtsx_devices[] = {
 #ifndef RTSX_INVERSION
-	{ 0x10ec,	0x5209,	RTSX_F_5209,    "Realtek RTS5209 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5209,	RTSX_F_5209,	"Realtek RTS5209 PCI MMC/SD Card Reader"},
 	{ 0x10ec,	0x5227,	RTSX_F_5227,	"Realtek RTS5227 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x5229,	RTSX_F_5229,    "Realtek RTS5229 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x522a,	RTSX_F_522A,    "Realtek RTS522A PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x525A,	RTSX_F_525A,    "Realtek RTS525A PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x5249,	RTSX_F_5249,    "Realtek RTS5249 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x5286,	RTSX_F_DEFAULT, "Realtek RTL8402 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5229,	RTSX_F_5229,	"Realtek RTS5229 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x522a,	RTSX_F_522A,	"Realtek RTS522A PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x525A,	RTSX_F_525A,	"Realtek RTS525A PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5249,	RTSX_F_5249,	"Realtek RTS5249 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5286,	RTSX_F_8402,	"Realtek RTL8402 PCI MMC/SD Card Reader"},
 	{ 0x10ec,	0x5289,	RTSX_F_8411,	"Realtek RTL8411 PCI MMC/SD Card Reader"},
 	{ 0x10ec,	0x5287,	RTSX_F_8411B,	"Realtek RTL8411B PCI MMC/SD Card Reader"},
 	{ 0, 		0,	0,		NULL}
 #else
-	{ 0x10ec,	0x5209,	RTSX_F_5209,    "Realtek RTS5209! PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5209,	RTSX_F_5209,	"Realtek RTS5209! PCI MMC/SD Card Reader"},
 	{ 0x10ec,	0x5227,	RTSX_F_5227,	"Realtek RTS5227! PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x5229,	RTSX_F_5229,    "Realtek RTS5229! PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x522a,	RTSX_F_522A,    "Realtek RTS522A! PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x525A,	RTSX_F_525A,    "Realtek RTS525A! PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x5249,	RTSX_F_5249,    "Realtek RTS5249! PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x5286,	RTSX_F_DEFAULT, "Realtek RTL8402! PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5229,	RTSX_F_5229,	"Realtek RTS5229! PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x522a,	RTSX_F_522A,	"Realtek RTS522A! PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x525A,	RTSX_F_525A,	"Realtek RTS525A! PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5249,	RTSX_F_5249,	"Realtek RTS5249! PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5286,	RTSX_F_8402,	"Realtek RTL8402! PCI MMC/SD Card Reader"},
 	{ 0x10ec,	0x5289,	RTSX_F_8411,	"Realtek RTL8411! PCI MMC/SD Card Reader"},
 	{ 0x10ec,	0x5287,	RTSX_F_8411B,	"Realtek RTL8411B! PCI MMC/SD Card Reader"},
 	{ 0, 		0,	0,		NULL}
@@ -721,7 +722,7 @@ rtsx_init(struct rtsx_softc *sc)
 		} else {
 			device_printf(sc->rtsx_dev, "pci_read_config() error\n");
 		}
-	} else if (sc->rtsx_flags & RTSX_F_8411) {
+	} else if (sc->rtsx_flags & (RTSX_F_8402 | RTSX_F_8411)) {
 		uint32_t reg1;
 		uint8_t  reg3;
 
@@ -976,7 +977,7 @@ rtsx_init(struct rtsx_softc *sc)
 			RTSX_BITOP(sc, RTSX_PETXCFG, 0xB0, 0xB0);
 		else
 			RTSX_BITOP(sc, RTSX_PETXCFG, 0xB0, 0x80);
-	} else  if (sc->rtsx_flags & RTSX_F_8411) {
+	} else  if (sc->rtsx_flags & (RTSX_F_8402 | RTSX_F_8411)) {
 		RTSX_WRITE(sc, RTSX_SD30_CMD_DRIVE_SEL, sc->rtsx_sd30_drive_sel_3v3);
 		RTSX_BITOP(sc, RTSX_CARD_PAD_CTL, RTSX_CD_DISABLE_MASK | RTSX_CD_AUTO_DISABLE,
 			   RTSX_CD_ENABLE);
@@ -1330,7 +1331,7 @@ rtsx_bus_power_off(struct rtsx_softc *sc)
 		RTSX_BITOP(sc, RTSX_CARD_PWR_CTL, RTSX_SD_PWR_MASK | RTSX_PMOS_STRG_MASK,
 			   RTSX_SD_PWR_OFF | RTSX_PMOS_STRG_400mA);
 		RTSX_CLR(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_PWR_MASK);
-	} else if (sc->rtsx_flags & (RTSX_F_8411 | RTSX_F_8411B)) {
+	} else if (sc->rtsx_flags & (RTSX_F_8402 | RTSX_F_8411 | RTSX_F_8411B)) {
 		RTSX_BITOP(sc, RTSX_CARD_PWR_CTL, RTSX_BPP_POWER_MASK,
 			   RTSX_BPP_POWER_OFF);
 		RTSX_BITOP(sc, RTSX_LDO_CTL, RTSX_BPP_LDO_POWB,
@@ -1342,7 +1343,7 @@ rtsx_bus_power_off(struct rtsx_softc *sc)
 	}
 
 	/* Disable pull control. */
-	if (sc->rtsx_flags & RTSX_F_8411) {
+	if (sc->rtsx_flags & (RTSX_F_8402 | RTSX_F_8411)) {
 		RTSX_WRITE(sc, RTSX_CARD_PULL_CTL1, 0x65);
 		RTSX_WRITE(sc, RTSX_CARD_PULL_CTL2, 0x55);
 		RTSX_WRITE(sc, RTSX_CARD_PULL_CTL3, 0x95);
@@ -1388,7 +1389,7 @@ rtsx_bus_power_on(struct rtsx_softc *sc)
 	RTSX_SET(sc, RTSX_CARD_CLK_EN, RTSX_SD_CLK_EN);
 
 	/* Enable pull control. */
-	if (sc->rtsx_flags & RTSX_F_8411) {
+	if (sc->rtsx_flags & (RTSX_F_8402 | RTSX_F_8411)) {
 		RTSX_WRITE(sc, RTSX_CARD_PULL_CTL1, 0xaa);
 		RTSX_WRITE(sc, RTSX_CARD_PULL_CTL2, 0xaa);
 		RTSX_WRITE(sc, RTSX_CARD_PULL_CTL3, 0xa9);
@@ -1421,7 +1422,7 @@ rtsx_bus_power_on(struct rtsx_softc *sc)
 	 * To avoid a current peak, enable card power in two phases
 	 * with a delay in between.
 	 */
-	if (sc->rtsx_flags & (RTSX_F_8411 | RTSX_F_8411B)) {
+	if (sc->rtsx_flags & (RTSX_F_8402 | RTSX_F_8411 | RTSX_F_8411B)) {
 		RTSX_BITOP(sc, RTSX_CARD_PWR_CTL, RTSX_BPP_POWER_MASK,
 			   RTSX_BPP_POWER_5_PERCENT_ON);
 		RTSX_BITOP(sc, RTSX_LDO_CTL, RTSX_BPP_LDO_POWB,
@@ -2348,6 +2349,11 @@ rtsx_mmcbr_switch_vccq(device_t bus, device_t child __unused)
 				return (error);
 			if ((error = rtsx_rts5249_fill_driving(sc)))
 				return (error);
+		} else if (sc->rtsx_flags & RTSX_F_8402) {
+			RTSX_BITOP(sc, RTSX_SD30_CMD_DRIVE_SEL, RTSX_SD30_DRIVE_SEL_MASK, sc->rtsx_sd30_drive_sel_3v3);
+			RTSX_BITOP(sc, RTSX_LDO_CTL,
+				   (RTSX_BPP_ASIC_MASK << RTSX_BPP_SHIFT_8402) | RTSX_BPP_PAD_MASK,
+				   (RTSX_BPP_ASIC_3V3 << RTSX_BPP_SHIFT_8402) | RTSX_BPP_PAD_3V3);
 		} else if (sc->rtsx_flags & (RTSX_F_8411 | RTSX_F_8411B)) {
 			RTSX_BITOP(sc, RTSX_SD30_CMD_DRIVE_SEL, RTSX_SD30_DRIVE_SEL_MASK, sc->rtsx_sd30_drive_sel_3v3);
 			RTSX_BITOP(sc, RTSX_LDO_CTL,

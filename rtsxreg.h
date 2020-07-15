@@ -25,7 +25,7 @@
  * $$FreeBSD$
  */
 
-#ifndef _RTSXREG_H_
+#ifndef	_RTSXREG_H_
 #define	_RTSXREG_H_
 
 #if  __FreeBSD__ < 12
@@ -252,6 +252,7 @@
 #define	RTSX_BPP_LDO_ON			0x00
 #define	RTSX_BPP_LDO_SUSPEND		0x02
 #define	RTSX_BPP_LDO_OFF		0x03
+#define	RTSX_BPP_SHIFT_8402		5
 #define	RTSX_BPP_SHIFT_8411		4
 
 #define	RTSX_GPIO_CTL			0xFC1F
