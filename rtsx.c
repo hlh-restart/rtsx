@@ -923,6 +923,8 @@ rtsx_init(struct rtsx_softc *sc)
 	} else if (sc->rtsx_flags & RTSX_F_5229) {
 		/* Reset ASPM state to default value. */
 		RTSX_BITOP(sc, RTSX_ASPM_FORCE_CTL, RTSX_ASPM_FORCE_MASK, RTSX_FORCE_ASPM_NO_ASPM);
+		/* Configure force_clock_req. */
+		RTSX_BITOP(sc, RTSX_PETXCFG, 0x08, 0x08);
 		/* Configure driving. */
 		RTSX_WRITE(sc, RTSX_SD30_CMD_DRIVE_SEL, sc->rtsx_sd30_drive_sel_3v3);
 	} else if (sc->rtsx_flags & RTSX_F_522A) {
