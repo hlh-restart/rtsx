@@ -906,9 +906,35 @@ rtsx_init(struct rtsx_softc *sc)
 //	RTSX_SET(sc, RTSX_PETXCFG, RTSX_PETXCFG_CLKREQ_PIN);
 
 	/* Specific extra init. */
-	if (sc->rtsx_flags & RTSX_F_5227) {
+	if (sc->rtsx_flags & RTSX_F_5209) {
+		/* Turn off LED. */
+		RTSX_WRITE(sc, RTSX_CARD_GPIO, 0x03);
+		/* Reset ASPM state to default value. */
+
+		RTSX_CLR(sc, RTSX_ASPM_FORCE_CTL, RTSX_ASPM_FORCE_MASK);
+		/* Force CLKREQ# PIN to drive 0 to request clock. */
+		RTSX_BITOP(sc, RTSX_PETXCFG, 0x08, 0x08);
+		/* Configure GPIO as output. */
+		RTSX_WRITE(sc, RTSX_CARD_GPIO_DIR, 0x03);
+		/* Configure driving. */
+		RTSX_WRITE(sc, RTSX_SD30_CMD_DRIVE_SEL, sc->rtsx_sd30_drive_sel_3v3);
+	} else if (sc->rtsx_flags & RTSX_F_5227) {
+		int reg;
+		uint16_t cap;
+
+		/* Configure GPIO as output. */
+		RTSX_BITOP(sc, RTSX_GPIO_CTL, RTSX_GPIO_LED_ON, RTSX_GPIO_LED_ON);
 		/* Reset ASPM state to default value. */
 		RTSX_BITOP(sc, RTSX_ASPM_FORCE_CTL, RTSX_ASPM_FORCE_MASK, RTSX_FORCE_ASPM_NO_ASPM);
+		/* Switch LDO3318 source from DV33 to 3V3. */
+		RTSX_CLR(sc, RTSX_LDO_PWR_SEL, RTSX_LDO_PWR_SEL_DV33);
+		RTSX_BITOP(sc, RTSX_LDO_PWR_SEL,RTSX_LDO_PWR_SEL_DV33, RTSX_LDO_PWR_SEL_3V3);
+		/* Set default OLT blink period. */
+		RTSX_BITOP(sc, RTSX_OLT_LED_CTL, 0x0F, RTSX_OLT_LED_PERIOD);
+		pci_find_cap(sc->rtsx_dev, PCIY_EXPRESS, &reg);
+		cap = pci_read_config(sc->rtsx_dev, reg + RTSX_PCI_EXP_DEVCTL2, 2);
+		if (cap & RTSX_PCI_EXP_DEVCTL2_LTR_EN)
+			RTSX_WRITE(sc, RTSX_LTR_CTL, 0xa3);
 		/* Configure OBFF. */
 		RTSX_BITOP(sc, RTSX_OBFF_CFG, RTSX_OBFF_EN_MASK, RTSX_OBFF_ENABLE);
 		/* Configure driving. */
@@ -921,16 +947,37 @@ rtsx_init(struct rtsx_softc *sc)
 			RTSX_BITOP(sc, RTSX_PETXCFG, 0xB8, 0x88);
 		RTSX_CLR(sc, RTSX_PM_CTRL3,  0x10);
 	} else if (sc->rtsx_flags & RTSX_F_5229) {
+		/* Configure GPIO as output. */
+		RTSX_BITOP(sc, RTSX_GPIO_CTL, RTSX_GPIO_LED_ON, RTSX_GPIO_LED_ON);
 		/* Reset ASPM state to default value. */
 		RTSX_BITOP(sc, RTSX_ASPM_FORCE_CTL, RTSX_ASPM_FORCE_MASK, RTSX_FORCE_ASPM_NO_ASPM);
-		/* Configure force_clock_req. */
+		/* Force CLKREQ# PIN to drive 0 to request clock. */
 		RTSX_BITOP(sc, RTSX_PETXCFG, 0x08, 0x08);
+		/* Switch LDO3318 source from DV33 to card_3v3. */
+		RTSX_CLR(sc, RTSX_LDO_PWR_SEL, RTSX_LDO_PWR_SEL_DV33);
+		RTSX_BITOP(sc, RTSX_LDO_PWR_SEL,RTSX_LDO_PWR_SEL_DV33, RTSX_LDO_PWR_SEL_3V3);
+		/* Set default OLT blink period. */
+		RTSX_BITOP(sc, RTSX_OLT_LED_CTL, 0x0F, RTSX_OLT_LED_PERIOD);
 		/* Configure driving. */
 		RTSX_WRITE(sc, RTSX_SD30_CMD_DRIVE_SEL, sc->rtsx_sd30_drive_sel_3v3);
 	} else if (sc->rtsx_flags & RTSX_F_522A) {
 		/* Add specific init from RTS5227. */
+		int reg;
+		uint16_t cap;
+
+		/* Configure GPIO as output. */
+		RTSX_BITOP(sc, RTSX_GPIO_CTL, RTSX_GPIO_LED_ON, RTSX_GPIO_LED_ON);
 		/* Reset ASPM state to default value. */
 		RTSX_BITOP(sc, RTSX_ASPM_FORCE_CTL, RTSX_ASPM_FORCE_MASK, RTSX_FORCE_ASPM_NO_ASPM);
+		/* Switch LDO3318 source from DV33 to 3V3. */
+		RTSX_CLR(sc, RTSX_LDO_PWR_SEL, RTSX_LDO_PWR_SEL_DV33);
+		RTSX_BITOP(sc, RTSX_LDO_PWR_SEL,RTSX_LDO_PWR_SEL_DV33, RTSX_LDO_PWR_SEL_3V3);
+		/* Set default OLT blink period. */
+		RTSX_BITOP(sc, RTSX_OLT_LED_CTL, 0x0F, RTSX_OLT_LED_PERIOD);
+		pci_find_cap(sc->rtsx_dev, PCIY_EXPRESS, &reg);
+		cap = pci_read_config(sc->rtsx_dev, reg + RTSX_PCI_EXP_DEVCTL2, 2);
+		if (cap & RTSX_PCI_EXP_DEVCTL2_LTR_EN)
+			RTSX_WRITE(sc, RTSX_LTR_CTL, 0xa3);
 		/* Configure OBFF. */
 		RTSX_BITOP(sc, RTSX_OBFF_CFG, RTSX_OBFF_EN_MASK, RTSX_OBFF_ENABLE);
 		/* Configure driving. */
@@ -941,13 +988,39 @@ rtsx_init(struct rtsx_softc *sc)
 			RTSX_BITOP(sc, RTSX_PETXCFG, 0xB8, 0xB8);
 		else
 			RTSX_BITOP(sc, RTSX_PETXCFG, 0xB8, 0x88);
-		RTSX_CLR(sc, RTSX_RTS522A_PM_CTRL3,  0x10);
-		RTSX_WRITE(sc, RTSX_FUNC_FORCE_CTL, RTSX_FUNC_FORCE_UPME_XMT_DBG);
-		RTSX_WRITE(sc, RTSX_PCLK_CTL, 0x04);
-		RTSX_WRITE(sc, RTSX_PM_EVENT_DEBUG, RTSX_PME_DEBUG_0);
+		RTSX_CLR(sc, RTSX_PM_CTRL3,  0x10);
+
+		/* specific for RTS522A. */
+		RTSX_BITOP(sc, RTSX_FUNC_FORCE_CTL,
+			   RTSX_FUNC_FORCE_UPME_XMT_DBG, RTSX_FUNC_FORCE_UPME_XMT_DBG);
+		RTSX_BITOP(sc, RTSX_PCLK_CTL, 0x04, 0x04);
+		RTSX_BITOP(sc, RTSX_PM_EVENT_DEBUG,
+			   RTSX_PME_DEBUG_0, RTSX_PME_DEBUG_0);
 		RTSX_WRITE(sc, RTSX_PM_CLK_FORCE_CTL, 0x11);
 	} else if (sc->rtsx_flags & RTSX_F_525A) {
-		RTSX_WRITE(sc, RTSX_PCLK_CTL, RTSX_PCLK_MODE_SEL);
+		/* Add specific init from RTS5249. */
+		/* Rest L1SUB Config. */
+		RTSX_CLR(sc, RTSX_L1SUB_CONFIG3, 0xff);
+		/* Configure GPIO as output. */
+		RTSX_BITOP(sc, RTSX_GPIO_CTL, RTSX_GPIO_LED_ON, RTSX_GPIO_LED_ON);
+		/* Reset ASPM state to default value. */
+		RTSX_BITOP(sc, RTSX_ASPM_FORCE_CTL, RTSX_ASPM_FORCE_MASK, RTSX_FORCE_ASPM_NO_ASPM);
+		/* Switch LDO3318 source from DV33 to 3V3. */
+		RTSX_CLR(sc, RTSX_LDO_PWR_SEL, RTSX_LDO_PWR_SEL_DV33);
+		RTSX_BITOP(sc, RTSX_LDO_PWR_SEL,RTSX_LDO_PWR_SEL_DV33, RTSX_LDO_PWR_SEL_3V3);
+		/* Set default OLT blink period. */
+		RTSX_BITOP(sc, RTSX_OLT_LED_CTL, 0x0F, RTSX_OLT_LED_PERIOD);
+		/* Configure driving. */
+		if ((error = rtsx_rts5249_fill_driving(sc)))
+			return (error);
+		/* Configure force_clock_req. */
+		if (sc->rtsx_flags & RTSX_REVERSE_SOCKET)
+			RTSX_BITOP(sc, RTSX_PETXCFG, 0xB0, 0xB0);
+		else
+			RTSX_BITOP(sc, RTSX_PETXCFG, 0xB0, 0x80);
+
+		/* Specifc for RTS525A. */
+		RTSX_BITOP(sc, RTSX_PCLK_CTL, RTSX_PCLK_MODE_SEL, RTSX_PCLK_MODE_SEL);
 		if (sc->rtsx_flags & RTSX_F_525A_TYPE_A) {
 			RTSX_WRITE(sc, RTSX_L1SUB_CONFIG2, RTSX_L1SUB_AUTO_CFG);
 			RTSX_BITOP(sc, RTSX_RREF_CFG,
@@ -964,8 +1037,17 @@ rtsx_init(struct rtsx_softc *sc)
 				   RTSX_OOBS_AUTOK_DIS | RTSX_OOBS_VAL_MASK, 0x89);
 		}
 	} else  if (sc->rtsx_flags & RTSX_F_5249) {
+		/* Rest L1SUB Config. */
 		RTSX_CLR(sc, RTSX_L1SUB_CONFIG3, 0xff);
+		/* Configure GPIO as output. */
+		RTSX_BITOP(sc, RTSX_GPIO_CTL, RTSX_GPIO_LED_ON, RTSX_GPIO_LED_ON);
+		/* Reset ASPM state to default value. */
 		RTSX_BITOP(sc, RTSX_ASPM_FORCE_CTL, RTSX_ASPM_FORCE_MASK, RTSX_FORCE_ASPM_NO_ASPM);
+		/* Switch LDO3318 source from DV33 to 3V3. */
+		RTSX_CLR(sc, RTSX_LDO_PWR_SEL, RTSX_LDO_PWR_SEL_DV33);
+		RTSX_BITOP(sc, RTSX_LDO_PWR_SEL,RTSX_LDO_PWR_SEL_DV33, RTSX_LDO_PWR_SEL_3V3);
+		/* Set default OLT blink period. */
+		RTSX_BITOP(sc, RTSX_OLT_LED_CTL, 0x0F, RTSX_OLT_LED_PERIOD);
 		/* Configure driving. */
 		if ((error = rtsx_rts5249_fill_driving(sc)))
 			return (error);
@@ -986,22 +1068,6 @@ rtsx_init(struct rtsx_softc *sc)
 		RTSX_BITOP(sc, RTSX_CARD_PAD_CTL, RTSX_CD_DISABLE_MASK | RTSX_CD_AUTO_DISABLE,
 			   RTSX_CD_ENABLE);
 		RTSX_BITOP(sc, RTSX_FUNC_FORCE_CTL, 0x06, 0x00);
-	} else {
-		RTSX_WRITE(sc, RTSX_SD30_CMD_DRIVE_SEL, sc->rtsx_sd30_drive_sel_3v3);
-	}
-
-	/* Set up LED GPIO. */
-	if (sc->rtsx_flags & RTSX_F_5209) {
-		RTSX_WRITE(sc, RTSX_CARD_GPIO, 0x03);
-		RTSX_WRITE(sc, RTSX_CARD_GPIO_DIR, 0x03);
-	} else {
-		/* Configure GPIO as output. */
-		RTSX_SET(sc, RTSX_GPIO_CTL, RTSX_GPIO_LED_ON);
-		/* Switch LDO3318 source from DV33 to 3V3. */
-		RTSX_CLR(sc, RTSX_LDO_PWR_SEL, RTSX_LDO_PWR_SEL_DV33);
-		RTSX_SET(sc, RTSX_LDO_PWR_SEL, RTSX_LDO_PWR_SEL_3V3);
-		/* Set default OLT blink period. */
-		RTSX_BITOP(sc, RTSX_OLT_LED_CTL, 0x0F, RTSX_OLT_LED_PERIOD);
 	}
 
 	return (0);

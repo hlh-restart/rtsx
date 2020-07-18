@@ -468,6 +468,9 @@
 #define	RTSX_CFG_PCI			0x1C
 #define	RTSX_CFG_ASIC			0x10
 
+#define	RTSX_PCI_EXP_DEVCTL2		40	/* Device Control 2 */
+#define	RTSX_PCI_EXP_DEVCTL2_LTR_EN	0x0400	/* Enable LTR mechanism */
+
 #define	RTSX_IRQEN0			0xFE20
 #define	RTSX_LINK_DOWN_INT_EN		0x10
 #define	RTSX_LINK_READY_INT_EN		0x20
@@ -513,6 +516,8 @@
 #define	RTSX_CFG_WRITE_DATA2		0x04
 #define	RTSX_CFG_WRITE_DATA3		0x08
 #define	RTSX_CFG_BUSY			0x80
+
+#define	RTSX_LTR_CTL			0xFE4A
 
 #define	RTSX_OBFF_CFG			0xFE4C
 #define	RTSX_OBFF_EN_MASK		0x03
