@@ -81,6 +81,9 @@ __FBSDID("$FreeBSD$");
 #define	RTSX_NREG ((0xFDAE - 0xFDA0) + (0xFD69 - 0xFD52) + (0xFE34 - 0xFE20))
 #define	SDMMC_MAXNSEGS	((MAXPHYS / PAGE_SIZE) + 1)
 
+#define	RTSX_MIN_DIV_N		80
+#define	RTSX_MAX_DIV_N		208
+
 /* The softc holds our per-instance data. */
 struct rtsx_softc {
 	struct mtx	rtsx_mtx;		/* device mutex */
@@ -119,6 +122,8 @@ struct rtsx_softc {
 	int8_t		rtsx_ios_power_mode;	/* current host.ios.power mode */
 	int8_t		rtsx_ios_timing;	/* current host.ios.timing */	
 	uint8_t		rtsx_read_only;		/* card read only status */
+	bool		rtsx_discovery_mode;	/* Are we in discovery mode? */
+	uint8_t		rtsx_ssc_depth;		/* Spread spectrum clocking depth */
 	uint8_t		rtsx_card_drive_sel;	/* value for RTSX_CARD_DRIVE_SEL */
 	uint8_t		rtsx_sd30_drive_sel_3v3;/* value for RTSX_SD30_DRIVE_SEL */
 	struct mmc_request *rtsx_req;		/* MMC request */
@@ -179,7 +184,7 @@ static int	rtsx_write_phy(struct rtsx_softc *sc, uint8_t addr, uint16_t val);
 static int	rtsx_set_sd_timing(struct rtsx_softc *sc, enum mmc_bus_timing timing);
 static int	rtsx_set_sd_clock(struct rtsx_softc *sc, uint32_t freq);
 static int	rtsx_stop_sd_clock(struct rtsx_softc *sc);
-static int	rtsx_switch_sd_clock(struct rtsx_softc *sc, uint8_t n, int div, int mcu);
+static int	rtsx_switch_sd_clock(struct rtsx_softc *sc, uint8_t n, uint8_t div, uint8_t mcu);
 static int	rtsx_bus_power_off(struct rtsx_softc *sc);
 static int	rtsx_bus_power_on(struct rtsx_softc *sc);
 static uint8_t	rtsx_response_type(uint16_t mmc_rsp);
@@ -1302,9 +1307,8 @@ rtsx_set_sd_timing(struct rtsx_softc *sc, enum mmc_bus_timing timing)
 static int
 rtsx_set_sd_clock(struct rtsx_softc *sc, uint32_t freq)
 {
-	uint8_t n;
-	int div;
-	int mcu;
+	uint8_t clk;
+	uint8_t clk_divider, n, div, mcu;
 	int error = 0;
 
 	if (bootverbose)
@@ -1312,50 +1316,62 @@ rtsx_set_sd_clock(struct rtsx_softc *sc, uint32_t freq)
 
 	if (freq == RTSX_SDCLK_OFF) {
 		error = rtsx_stop_sd_clock(sc);
-		goto done;
+		return error;
 	}
 
-	/* Round down to a supported frequency. */
-	if (freq >= RTSX_SDCLK_50MHZ)
-		freq = RTSX_SDCLK_50MHZ;
-	else if (freq >= RTSX_SDCLK_25MHZ)
-		freq = RTSX_SDCLK_25MHZ;
-	else
-		freq = RTSX_SDCLK_400KHZ;
+	sc->rtsx_ssc_depth = RTSX_SSC_DEPTH_500K;
+	sc->rtsx_discovery_mode = (freq <= 1000000) ? true : false;
 
-	/*
-	 * Configure the clock frequency.
-	 */
-	switch (freq) {
-	case RTSX_SDCLK_400KHZ:
-		n = 80; /* minimum */
-		div = RTSX_CLK_DIV_8;
-		mcu = 7;
-		/*!!!*/
-//		RTSX_BITOP(sc, RTSX_SD_CFG1, RTSX_CLK_DIVIDE_MASK, RTSX_CLK_DIVIDE_128);
-		RTSX_CLR(sc, RTSX_SD_CFG1, RTSX_CLK_DIVIDE_MASK);
-		break;
-	case RTSX_SDCLK_25MHZ:
-		n = 100;
-		div = RTSX_CLK_DIV_4;
-		mcu = 7;
-		RTSX_CLR(sc, RTSX_SD_CFG1, RTSX_CLK_DIVIDE_MASK);
-		break;
-	case RTSX_SDCLK_50MHZ:
-		n = 100;
-		div = RTSX_CLK_DIV_2;
-		mcu = 7;
-		RTSX_CLR(sc, RTSX_SD_CFG1, RTSX_CLK_DIVIDE_MASK);
-		break;
-	default:
-		error = EINVAL;
-		goto done;
+	if (sc->rtsx_discovery_mode) {
+		/* We use 250k(around) here, in discovery stage. */
+		clk_divider = RTSX_CLK_DIVIDE_128;
+		freq = 30000000;
+	} else {
+		clk_divider = RTSX_CLK_DIVIDE_0;
+	}
+	RTSX_BITOP(sc, RTSX_SD_CFG1, RTSX_CLK_DIVIDE_MASK, clk_divider);
+
+	freq /= 1000000;
+	if (sc->rtsx_discovery_mode)
+		clk = freq;
+	else
+		clk = freq * 2;
+
+	if (sc->rtsx_flags & (RTSX_F_8402 | RTSX_F_8411 | RTSX_F_8411B))
+		n = clk * 4 / 5 - 2;
+	else
+		n = clk - 2;
+	if ((clk <= 2) || (n > RTSX_MAX_DIV_N))
+		return EINVAL;
+
+	mcu = 125 / clk + 3;
+	if (mcu > 15)
+		mcu = 15;
+
+	/* Make sure that the SSC clock div_n is not less than RTSX_MIN_DIV_N. */
+	div = RTSX_CLK_DIV_1;
+	while ((n < RTSX_MIN_DIV_N) && (div < RTSX_CLK_DIV_8)) {
+		if (sc->rtsx_flags & (RTSX_F_8402 | RTSX_F_8411 | RTSX_F_8411B)) {
+			uint8_t dbl_clk = ((n + 2) * 5 / 4) * 2;
+			n = dbl_clk * 4 / 5 - 2;
+		} else {
+			n = (n + 2) * 2 - 2;
+		}
+		div++;
+	}
+
+	if (sc->rtsx_ssc_depth > 1)
+		sc->rtsx_ssc_depth -= 1;
+	if (div > RTSX_CLK_DIV_1) {
+		if (sc->rtsx_ssc_depth > (div - 1))
+			sc->rtsx_ssc_depth -= (div - 1);
+		else
+			sc->rtsx_ssc_depth = RTSX_SSC_DEPTH_4M;
 	}
 
 	/* Enable SD clock. */
 	error = rtsx_switch_sd_clock(sc, n, div, mcu);
 
- done:
 	return (error);
 }
 
@@ -1368,24 +1384,15 @@ rtsx_stop_sd_clock(struct rtsx_softc *sc)
 }
 
 static int
-rtsx_switch_sd_clock(struct rtsx_softc *sc, uint8_t n, int div, int mcu)
+rtsx_switch_sd_clock(struct rtsx_softc *sc, uint8_t n, uint8_t div, uint8_t mcu)
 {
-#if 0	/*see rtsx_set_sd_timing() */
-	RTSX_CLR(sc, RTSX_SD_CFG1, RTSX_SD_MODE_MASK);
-	RTSX_BITOP(sc, RTSX_CLK_CTL, RTSX_CLK_LOW_FREQ, RTSX_CLK_LOW_FREQ);
-	RTSX_WRITE(sc, RTSX_CARD_CLK_SOURCE,
-		   RTSX_CRC_FIX_CLK | RTSX_SD30_VAR_CLK0 | RTSX_SAMPLE_VAR_CLK1);
-	/*!!! added */
-	RTSX_CLR(sc, RTSX_CLK_CTL, RTSX_CLK_LOW_FREQ);
-	RTSX_WRITE(sc, RTSX_SD_PUSH_POINT_CTL, RTSX_SD20_TX_NEG_EDGE);
-	RTSX_BITOP(sc, RTSX_SD_SAMPLE_POINT_CTL,
-		   RTSX_SD20_RX_SEL_MASK, RTSX_SD20_RX_POS_EDGE);
-#endif	/* see rtsx_set_sd_timing() */
+	if (bootverbose)
+		device_printf(sc->rtsx_dev, "rtsx_switch_sd_clock() - n=%d div=%d mcu=%d\n", n, div, mcu);
 
 	RTSX_BITOP(sc, RTSX_CLK_CTL, RTSX_CLK_LOW_FREQ, RTSX_CLK_LOW_FREQ);
 	RTSX_WRITE(sc, RTSX_CLK_DIV, (div << 4) | mcu);
 	RTSX_CLR(sc, RTSX_SSC_CTL1, RTSX_RSTB);
-	RTSX_CLR(sc, RTSX_SSC_CTL2, RTSX_SSC_DEPTH_MASK);
+	RTSX_BITOP(sc, RTSX_SSC_CTL2, RTSX_SSC_DEPTH_MASK, sc->rtsx_ssc_depth);
 	RTSX_WRITE(sc, RTSX_SSC_DIV_N_0, n);
 	RTSX_BITOP(sc, RTSX_SSC_CTL1, RTSX_RSTB, RTSX_RSTB);
 
@@ -1904,6 +1911,10 @@ rtsx_xfer_short(struct rtsx_softc *sc, struct mmc_command *cmd)
 	read = ISSET(cmd->data->flags, MMC_DATA_READ);
 
 	if (read) {
+
+		if (sc->rtsx_discovery_mode)
+			(void)rtsx_write(sc, RTSX_SD_CFG1, RTSX_CLK_DIVIDE_MASK, RTSX_CLK_DIVIDE_0);
+
 		rtsx_init_cmd(sc, cmd);
 
 		/* Queue commands to configure data transfer size. */
@@ -1932,10 +1943,16 @@ rtsx_xfer_short(struct rtsx_softc *sc, struct mmc_command *cmd)
 			      RTSX_SD_TRANSFER_END, RTSX_SD_TRANSFER_END);
 
 		/* Run the command queue and wait for completion. */
-		if ((error = rtsx_send_cmd(sc, cmd)))
+		if ((error = rtsx_send_cmd(sc, cmd))) {
+			if (sc->rtsx_discovery_mode)
+				RTSX_BITOP(sc, RTSX_SD_CFG1, RTSX_CLK_DIVIDE_MASK, RTSX_CLK_DIVIDE_128);
 			return (error);
+		}
 
 		error = rtsx_read_ppbuf(sc, cmd);
+
+		if (sc->rtsx_discovery_mode)
+			RTSX_BITOP(sc, RTSX_SD_CFG1, RTSX_CLK_DIVIDE_MASK, RTSX_CLK_DIVIDE_128);
 
 		if (bootverbose && error == 0 && cmd->opcode == ACMD_SEND_SCR) {
 			uint8_t *ptr = cmd->data->data;
@@ -2391,8 +2408,6 @@ rtsx_mmcbr_update_ios(device_t bus, device_t child)
 
 	/* if MMCBR_IVAR_TIMING updated. */
 	if (sc->rtsx_ios_timing < 0) {
-		/*!!! bus_timing_hs not supported by simple SD card (CRC error) */
-		ios->timing = bus_timing_normal;
 		sc->rtsx_ios_timing = ios->timing;
 		if ((error = rtsx_set_sd_timing(sc, ios->timing)))
 			return (error);
