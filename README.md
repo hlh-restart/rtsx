@@ -48,8 +48,8 @@ For debugging:
 #### TESTED ON:
 
  - RTS5209 under head (Lenovo ThinkPad L520, Packard Bell EN LV44HC i3-2328M)
- - RTS5227 under stable/11 and releng/12.1
-   (HP ProBook 430 g2, Lenovo ThinkPad T450/T450s/X270, Fujitsu H730)
+ - RTS5227 under stable/11, releng/12.1 and head
+   (HP ProBook 430 g2, Lenovo ThinkPad S440/T450/T450s/X270, Fujitsu H730)
  - RTS5229 under releng/12.1 (Lenovo IdeaPad 120S-14IAP)
  - RTS522A under releng/12.1 and head (Intel NUC8i5BE, ThinkPad P50s, ThinkPad T470p)
  - RTS525A under releng/12.1 (Dell Latitude E5570, Dell XPS 13 - model 9360)
