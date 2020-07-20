@@ -163,10 +163,10 @@ static int	rtsx_wait_intr(struct rtsx_softc *sc, int mask, int timeout);
 static void	rtsx_handle_card_present(struct rtsx_softc *sc);
 static void	rtsx_card_task(void *arg, int pending __unused);
 static bool	rtsx_is_card_present(struct rtsx_softc *sc);
-#if 0  /* For led */
+#if 0	/* For led */
 static int	rtsx_led_enable(struct rtsx_softc *sc);
 static int	rtsx_led_disable(struct rtsx_softc *sc);
-#endif /* For led */
+#endif	/* For led */
 static int	rtsx_init(struct rtsx_softc *sc);
 static int	rtsx_map_sd_drive(int index);
 static int	rtsx_rts5227_fill_driving(struct rtsx_softc *sc);
@@ -297,6 +297,29 @@ static int	rtsx_mmcbr_release_host(device_t bus, device_t child __unused);
  * The chip is unable to perform DMA above 4GB.
  */
 
+/*
+ * Main commands in the usual seqence used:
+ *
+ * CMD0		Go idle state
+ * CMD8		Send interface condition
+ * CMD55	Application Command for next ACMD
+ * ACMD41	Send Operation Conditions Register (OCR: voltage profile of the card)
+ * CMD2		Send Card Identification (CID) Register
+ * CMD3		Send relative address
+ * CMD9		Send Card Specific Data (CSD)
+ * CMD13	Send status (32 bits -  bit 25: card password protected)
+ * CMD7		Select card (before Get card SCR)
+ * ACMD51	Send SCR (SD CARD Configuration Register - [51:48]: Bus widths supported)
+ * CMD6		SD switch function
+ * ACMD13	Send SD status (512 bits)
+ * ACMD42	Set/Clear card detect
+ * ACMD6	Set bus width
+ *
+ * CMD17	Read single block (<=512)
+ * CMD18	Read multiple blocks (>512)
+ * CMD24	Write single block (<=512)
+ * CMD25	Write multiple blocks (>512)
+ */
 static int
 rtsx_dma_alloc(struct rtsx_softc *sc) {
 	int	error = 0;
@@ -931,6 +954,7 @@ rtsx_init(struct rtsx_softc *sc)
 		RTSX_BITOP(sc, RTSX_LDO_PWR_SEL,RTSX_LDO_PWR_SEL_DV33, RTSX_LDO_PWR_SEL_3V3);
 		/* Set default OLT blink period. */
 		RTSX_BITOP(sc, RTSX_OLT_LED_CTL, 0x0F, RTSX_OLT_LED_PERIOD);
+		/* Configure LTR. */
 		pci_find_cap(sc->rtsx_dev, PCIY_EXPRESS, &reg);
 		cap = pci_read_config(sc->rtsx_dev, reg + RTSX_PCI_EXP_DEVCTL2, 2);
 		if (cap & RTSX_PCI_EXP_DEVCTL2_LTR_EN)
@@ -974,6 +998,7 @@ rtsx_init(struct rtsx_softc *sc)
 		RTSX_BITOP(sc, RTSX_LDO_PWR_SEL,RTSX_LDO_PWR_SEL_DV33, RTSX_LDO_PWR_SEL_3V3);
 		/* Set default OLT blink period. */
 		RTSX_BITOP(sc, RTSX_OLT_LED_CTL, 0x0F, RTSX_OLT_LED_PERIOD);
+		/* Configure LTR. */
 		pci_find_cap(sc->rtsx_dev, PCIY_EXPRESS, &reg);
 		cap = pci_read_config(sc->rtsx_dev, reg + RTSX_PCI_EXP_DEVCTL2, 2);
 		if (cap & RTSX_PCI_EXP_DEVCTL2_LTR_EN)
@@ -1244,24 +1269,27 @@ rtsx_set_sd_timing(struct rtsx_softc *sc, enum mmc_bus_timing timing)
 
 	switch (timing) {
 	case bus_timing_hs:
-		RTSX_BITOP(sc, RTSX_SD_CFG1, 0x0C, RTSX_SD20_MODE);
+		RTSX_BITOP(sc, RTSX_SD_CFG1, RTSX_SD_MODE_MASK, RTSX_SD20_MODE);
 		RTSX_BITOP(sc, RTSX_CLK_CTL, RTSX_CLK_LOW_FREQ, RTSX_CLK_LOW_FREQ);
-		RTSX_BITOP(sc, RTSX_CARD_CLK_SOURCE, 0xff,
+		RTSX_WRITE(sc, RTSX_CARD_CLK_SOURCE,
 			   RTSX_CRC_FIX_CLK | RTSX_SD30_VAR_CLK0 | RTSX_SAMPLE_VAR_CLK1);
-		RTSX_BITOP(sc, RTSX_CLK_CTL, RTSX_CLK_LOW_FREQ, 0x00);
+		RTSX_CLR(sc, RTSX_CLK_CTL, RTSX_CLK_LOW_FREQ);
+
 		RTSX_BITOP(sc, RTSX_SD_PUSH_POINT_CTL,
 			   RTSX_SD20_TX_SEL_MASK, RTSX_SD20_TX_14_AHEAD);
 		RTSX_BITOP(sc, RTSX_SD_SAMPLE_POINT_CTL,
 			   RTSX_SD20_RX_SEL_MASK, RTSX_SD20_RX_14_DELAY);
 		break;
 	default:
-		RTSX_BITOP(sc, RTSX_SD_CFG1, 0x0C, RTSX_SD20_MODE);
+		RTSX_BITOP(sc, RTSX_SD_CFG1, RTSX_SD_MODE_MASK, RTSX_SD20_MODE);
 		RTSX_BITOP(sc, RTSX_CLK_CTL, RTSX_CLK_LOW_FREQ, RTSX_CLK_LOW_FREQ);
-		RTSX_BITOP(sc, RTSX_CARD_CLK_SOURCE, 0xff,
+		RTSX_WRITE(sc, RTSX_CARD_CLK_SOURCE,
 			   RTSX_CRC_FIX_CLK | RTSX_SD30_VAR_CLK0 | RTSX_SAMPLE_VAR_CLK1);
-		RTSX_BITOP(sc, RTSX_CLK_CTL, RTSX_CLK_LOW_FREQ, 0x00);
-		RTSX_BITOP(sc, RTSX_SD_PUSH_POINT_CTL, 0xFF, RTSX_SD20_TX_NEG_EDGE);
-		RTSX_BITOP(sc, RTSX_SD_SAMPLE_POINT_CTL, RTSX_SD20_RX_SEL_MASK, RTSX_SD20_RX_POS_EDGE);
+		RTSX_CLR(sc, RTSX_CLK_CTL, RTSX_CLK_LOW_FREQ);
+
+		RTSX_WRITE(sc, RTSX_SD_PUSH_POINT_CTL, RTSX_SD20_TX_NEG_EDGE);
+		RTSX_BITOP(sc, RTSX_SD_SAMPLE_POINT_CTL,
+			   RTSX_SD20_RX_SEL_MASK, RTSX_SD20_RX_POS_EDGE);
 	}
 
 	return (0);
@@ -1342,24 +1370,29 @@ rtsx_stop_sd_clock(struct rtsx_softc *sc)
 static int
 rtsx_switch_sd_clock(struct rtsx_softc *sc, uint8_t n, int div, int mcu)
 {
-	/* Enable SD 2.0 mode. */
+#if 0	/*see rtsx_set_sd_timing() */
 	RTSX_CLR(sc, RTSX_SD_CFG1, RTSX_SD_MODE_MASK);
-
-	RTSX_SET(sc, RTSX_CLK_CTL, RTSX_CLK_LOW_FREQ);
-
+	RTSX_BITOP(sc, RTSX_CLK_CTL, RTSX_CLK_LOW_FREQ, RTSX_CLK_LOW_FREQ);
 	RTSX_WRITE(sc, RTSX_CARD_CLK_SOURCE,
 		   RTSX_CRC_FIX_CLK | RTSX_SD30_VAR_CLK0 | RTSX_SAMPLE_VAR_CLK1);
-	RTSX_CLR(sc, RTSX_SD_SAMPLE_POINT_CTL, RTSX_SD20_RX_SEL_MASK);
+	/*!!! added */
+	RTSX_CLR(sc, RTSX_CLK_CTL, RTSX_CLK_LOW_FREQ);
 	RTSX_WRITE(sc, RTSX_SD_PUSH_POINT_CTL, RTSX_SD20_TX_NEG_EDGE);
+	RTSX_BITOP(sc, RTSX_SD_SAMPLE_POINT_CTL,
+		   RTSX_SD20_RX_SEL_MASK, RTSX_SD20_RX_POS_EDGE);
+#endif	/* see rtsx_set_sd_timing() */
+
+	RTSX_BITOP(sc, RTSX_CLK_CTL, RTSX_CLK_LOW_FREQ, RTSX_CLK_LOW_FREQ);
 	RTSX_WRITE(sc, RTSX_CLK_DIV, (div << 4) | mcu);
 	RTSX_CLR(sc, RTSX_SSC_CTL1, RTSX_RSTB);
 	RTSX_CLR(sc, RTSX_SSC_CTL2, RTSX_SSC_DEPTH_MASK);
 	RTSX_WRITE(sc, RTSX_SSC_DIV_N_0, n);
-	RTSX_SET(sc, RTSX_SSC_CTL1, RTSX_RSTB);
+	RTSX_BITOP(sc, RTSX_SSC_CTL1, RTSX_RSTB, RTSX_RSTB);
 
 	DELAY(200);
 
 	RTSX_CLR(sc, RTSX_CLK_CTL, RTSX_CLK_LOW_FREQ);
+
 	return (0);
 }
 
@@ -1549,7 +1582,7 @@ rtsx_bus_power_on(struct rtsx_softc *sc)
 	return (0);
 }
 
-#if 0  /* For led usage */
+#if 0	/* For led usage */
 static int
 rtsx_led_enable(struct rtsx_softc *sc)
 {
@@ -1585,7 +1618,7 @@ rtsx_led_disable(struct rtsx_softc *sc)
 
 	return (0);
 }
-#endif /* For led usage */
+#endif	/* For led usage */
 
 static uint8_t
 rtsx_response_type(uint16_t mmc_rsp)
@@ -2337,13 +2370,6 @@ rtsx_mmcbr_update_ios(device_t bus, device_t child)
 		}
 	}
 
-	/* if MMCBR_IVAR_CLOCK updated. */
-	if (sc->rtsx_ios_clock < 0) {
-		sc->rtsx_ios_clock = ios->clock;
-		if ((error = rtsx_set_sd_clock(sc, ios->clock)))
-			return (error);
-	}
-
 	/* if MMCBR_IVAR_POWER_MODE updated. */
 	if (sc->rtsx_ios_power_mode < 0) {
 		sc->rtsx_ios_power_mode = ios->power_mode;
@@ -2365,8 +2391,17 @@ rtsx_mmcbr_update_ios(device_t bus, device_t child)
 
 	/* if MMCBR_IVAR_TIMING updated. */
 	if (sc->rtsx_ios_timing < 0) {
+		/*!!! bus_timing_hs not supported by simple SD card (CRC error) */
+		ios->timing = bus_timing_normal;
 		sc->rtsx_ios_timing = ios->timing;
 		if ((error = rtsx_set_sd_timing(sc, ios->timing)))
+			return (error);
+	}
+
+	/* if MMCBR_IVAR_CLOCK updated, must be after rtsx_set_sd_timing() */
+	if (sc->rtsx_ios_clock < 0) {
+		sc->rtsx_ios_clock = ios->clock;
+		if ((error = rtsx_set_sd_clock(sc, ios->clock)))
 			return (error);
 	}
 

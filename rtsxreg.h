@@ -231,6 +231,7 @@
 
 #define	RTSX_SSC_CTL2			0xFC12
 #define	RTSX_SSC_DEPTH_MASK		0x07
+#define	RTSX_SSC_DEPTH_500K		0x04
 
 /* RC oscillator, default is 2M */
 #define	RTSX_RCCTL			0xFC14
