@@ -59,31 +59,6 @@ __FBSDID("$FreeBSD$");
 
 #include "rtsxreg.h"
 
-/* rtsx_flags values */
-#define	RTSX_F_DEFAULT		0x0000
-#define	RTSX_F_CARD_PRESENT	0x0001
-#define	RTSX_F_SDIO_SUPPORT	0x0002
-#define	RTSX_F_5209		0x0004
-#define	RTSX_F_5227		0x0008
-#define	RTSX_F_5229		0x0010
-#define	RTSX_F_5229_TYPE_C	0x0020
-#define	RTSX_F_522A		0x0040
-#define	RTSX_F_522A_TYPE_A	0x0080
-#define	RTSX_F_525A		0x0100
-#define	RTSX_F_525A_TYPE_A	0x0200
-#define	RTSX_F_5249		0x0400
-#define	RTSX_F_8402		0x0800
-#define	RTSX_F_8411		0x1000
-#define	RTSX_F_8411B		0x2000
-#define	RTSX_F_8411B_QFN48	0x4000
-#define	RTSX_REVERSE_SOCKET	0x8000
-
-#define	RTSX_NREG ((0xFDAE - 0xFDA0) + (0xFD69 - 0xFD52) + (0xFE34 - 0xFE20))
-#define	SDMMC_MAXNSEGS	((MAXPHYS / PAGE_SIZE) + 1)
-
-#define	RTSX_MIN_DIV_N		80
-#define	RTSX_MAX_DIV_N		208
-
 /* The softc holds our per-instance data. */
 struct rtsx_softc {
 	struct mtx	rtsx_mtx;		/* device mutex */
@@ -128,6 +103,25 @@ struct rtsx_softc {
 	uint8_t		rtsx_sd30_drive_sel_3v3;/* value for RTSX_SD30_DRIVE_SEL */
 	struct mmc_request *rtsx_req;		/* MMC request */
 };
+
+/* rtsx_flags values */
+#define	RTSX_F_DEFAULT		0x0000
+#define	RTSX_F_CARD_PRESENT	0x0001
+#define	RTSX_F_SDIO_SUPPORT	0x0002
+#define	RTSX_F_5209		0x0004
+#define	RTSX_F_5227		0x0008
+#define	RTSX_F_5229		0x0010
+#define	RTSX_F_5229_TYPE_C	0x0020
+#define	RTSX_F_522A		0x0040
+#define	RTSX_F_522A_TYPE_A	0x0080
+#define	RTSX_F_525A		0x0100
+#define	RTSX_F_525A_TYPE_A	0x0200
+#define	RTSX_F_5249		0x0400
+#define	RTSX_F_8402		0x0800
+#define	RTSX_F_8411		0x1000
+#define	RTSX_F_8411B		0x2000
+#define	RTSX_F_8411B_QFN48	0x4000
+#define	RTSX_REVERSE_SOCKET	0x8000
 
 static const struct rtsx_device {
 	uint16_t	vendor;
@@ -233,6 +227,9 @@ static int	rtsx_mmcbr_release_host(device_t bus, device_t child __unused);
 #define	RTSX_SDCLK_50MHZ	 50000000
 #define	RTSX_SDCLK_100MHZ	100000000
 #define	RTSX_SDCLK_208MHZ	208000000
+
+#define	RTSX_MIN_DIV_N		80
+#define	RTSX_MAX_DIV_N		208
 
 #define	RTSX_MAX_DATA_BLKLEN	512
 
@@ -1386,8 +1383,11 @@ rtsx_stop_sd_clock(struct rtsx_softc *sc)
 static int
 rtsx_switch_sd_clock(struct rtsx_softc *sc, uint8_t n, uint8_t div, uint8_t mcu)
 {
-	if (bootverbose)
+	if (bootverbose) {
+		device_printf(sc->rtsx_dev, "rtsx_switch_sd_clock() - discovery-mode is %s, ssc_depth=%d\n",
+			      (sc->rtsx_discovery_mode) ? "true" : "false", sc->rtsx_ssc_depth);
 		device_printf(sc->rtsx_dev, "rtsx_switch_sd_clock() - n=%d div=%d mcu=%d\n", n, div, mcu);
+	}
 
 	RTSX_BITOP(sc, RTSX_CLK_CTL, RTSX_CLK_LOW_FREQ, RTSX_CLK_LOW_FREQ);
 	RTSX_WRITE(sc, RTSX_CLK_DIV, (div << 4) | mcu);
