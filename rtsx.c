@@ -917,7 +917,9 @@ rtsx_init(struct rtsx_softc *sc)
 	RTSX_BITOP(sc, RTSX_CHANGE_LINK_STATE, 0x16, RTSX_MAC_PHY_RST_N_DBG);
 
 	/* Clear Link Ready Interrupt. */
-	RTSX_SET(sc, RTSX_IRQSTAT0, RTSX_LINK_READY_INT);
+	/*!!!*/
+//	RTSX_SET(sc, RTSX_IRQSTAT0, RTSX_LINK_READY_INT);
+	RTSX_BITOP(sc, RTSX_IRQSTAT0, RTSX_LINK_READY_INT, RTSX_LINK_READY_INT);
 
 	/* Enlarge the estimation window of PERST# glitch
 	 * to reduce the chance of invalid card interrupt. */
@@ -2454,7 +2456,7 @@ rtsx_mmcbr_switch_vccq(device_t bus, device_t child __unused)
 				return (error);
 			if ((error = rtsx_rts5227_fill_driving(sc)))
 				return (error);
-		} else if (sc->rtsx_flags & RTSX_F_5229) {
+		} else if (sc->rtsx_flags & (RTSX_F_5209 | RTSX_F_5229)) {
 			RTSX_BITOP(sc, RTSX_SD30_CMD_DRIVE_SEL, RTSX_SD30_DRIVE_SEL_MASK, sc->rtsx_sd30_drive_sel_3v3);
 			if ((error = rtsx_write_phy(sc, 0x08, 0x4FE4)))
 				return (error);
