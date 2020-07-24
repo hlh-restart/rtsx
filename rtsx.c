@@ -1795,11 +1795,6 @@ rtsx_send_req_get_resp(struct rtsx_softc *sc, struct mmc_command *cmd) {
 		return (MMC_ERR_INVALID);
 	}
 
-	/* Select SD card. */
-	/*!!! Only in Linux. */
-//	RTSX_WRITE(sc, RTSX_CARD_SELECT, RTSX_SD_MOD_SEL);
-//	RTSX_WRITE(sc, RTSX_CARD_SHARE_MODE, RTSX_CARD_SHARE_48_SD);
-
 	rtsx_init_cmd(sc, cmd);
 
 	/* Queue command to set response type. */
@@ -2570,6 +2565,11 @@ rtsx_mmcbr_request(device_t bus, device_t child __unused, struct mmc_request *re
 		error = MMC_ERR_INVALID;
 		goto done;
 	}
+
+	/* Select SD card. */
+	/*!!! Only in Linux. */
+	RTSX_BITOP(sc, RTSX_CARD_SELECT, 0x07, RTSX_SD_MOD_SEL);
+	RTSX_BITOP(sc, RTSX_CARD_SHARE_MODE, RTSX_CARD_SHARE_MASK, RTSX_CARD_SHARE_48_SD);
 
 	if (cmd->data == NULL) {
 		/*!!!*/
