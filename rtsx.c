@@ -59,6 +59,8 @@ __FBSDID("$FreeBSD$");
 
 #include "rtsxreg.h"
 
+static int rtsx_debug = 0;
+
 /* The softc holds our per-instance data. */
 struct rtsx_softc {
 	struct mtx	rtsx_mtx;		/* device mutex */
@@ -178,7 +180,7 @@ static int	rtsx_write_phy(struct rtsx_softc *sc, uint8_t addr, uint16_t val);
 static int	rtsx_set_sd_timing(struct rtsx_softc *sc, enum mmc_bus_timing timing);
 static int	rtsx_set_sd_clock(struct rtsx_softc *sc, uint32_t freq);
 static int	rtsx_stop_sd_clock(struct rtsx_softc *sc);
-static int	rtsx_switch_sd_clock(struct rtsx_softc *sc, uint8_t n, uint8_t div, uint8_t mcu);
+static int	rtsx_switch_sd_clock(struct rtsx_softc *sc, uint8_t clk, uint8_t n, uint8_t div, uint8_t mcu);
 static int	rtsx_bus_power_off(struct rtsx_softc *sc);
 static int	rtsx_bus_power_on(struct rtsx_softc *sc);
 static uint8_t	rtsx_response_type(uint16_t mmc_rsp);
@@ -1268,7 +1270,7 @@ static int
 rtsx_set_sd_timing(struct rtsx_softc *sc, enum mmc_bus_timing timing)
 {
 
-	if (bootverbose)
+	if (bootverbose || rtsx_debug)
 		device_printf(sc->rtsx_dev, "rtsx_set_sd_timing(%u)\n", timing);
 
 	switch (timing) {
@@ -1310,7 +1312,7 @@ rtsx_set_sd_clock(struct rtsx_softc *sc, uint32_t freq)
 	uint8_t clk_divider, n, div, mcu;
 	int error = 0;
 
-	if (bootverbose)
+	if (bootverbose || rtsx_debug)
 		device_printf(sc->rtsx_dev, "rtsx_set_sd_clock(%u)\n", freq);
 
 	if (freq == RTSX_SDCLK_OFF) {
@@ -1369,7 +1371,7 @@ rtsx_set_sd_clock(struct rtsx_softc *sc, uint32_t freq)
 	}
 
 	/* Enable SD clock. */
-	error = rtsx_switch_sd_clock(sc, n, div, mcu);
+	error = rtsx_switch_sd_clock(sc, clk, n, div, mcu);
 
 	return (error);
 }
@@ -1383,12 +1385,13 @@ rtsx_stop_sd_clock(struct rtsx_softc *sc)
 }
 
 static int
-rtsx_switch_sd_clock(struct rtsx_softc *sc, uint8_t n, uint8_t div, uint8_t mcu)
+rtsx_switch_sd_clock(struct rtsx_softc *sc, uint8_t clk, uint8_t n, uint8_t div, uint8_t mcu)
 {
-	if (bootverbose) {
+	if (bootverbose || rtsx_debug) {
 		device_printf(sc->rtsx_dev, "rtsx_switch_sd_clock() - discovery-mode is %s, ssc_depth=%d\n",
 			      (sc->rtsx_discovery_mode) ? "true" : "false", sc->rtsx_ssc_depth);
-		device_printf(sc->rtsx_dev, "rtsx_switch_sd_clock() - n=%d div=%d mcu=%d\n", n, div, mcu);
+		device_printf(sc->rtsx_dev, "rtsx_switch_sd_clock() - clk=%d, n=%d div=%d mcu=%d\n",
+			      clk, n, div, mcu);
 	}
 
 	RTSX_BITOP(sc, RTSX_CLK_CTL, RTSX_CLK_LOW_FREQ, RTSX_CLK_LOW_FREQ);
@@ -1398,6 +1401,7 @@ rtsx_switch_sd_clock(struct rtsx_softc *sc, uint8_t n, uint8_t div, uint8_t mcu)
 	RTSX_WRITE(sc, RTSX_SSC_DIV_N_0, n);
 	RTSX_BITOP(sc, RTSX_SSC_CTL1, RTSX_RSTB, RTSX_RSTB);
 
+	/* Wait SSC clock stable. */
 	DELAY(200);
 
 	RTSX_CLR(sc, RTSX_CLK_CTL, RTSX_CLK_LOW_FREQ);
@@ -1415,7 +1419,7 @@ rtsx_bus_power_off(struct rtsx_softc *sc)
 {
 	int error;
 
-	if (bootverbose)
+	if (bootverbose || rtsx_debug)
 		device_printf(sc->rtsx_dev, "rtsx_bus_power_off()\n");
 
 	if ((error = rtsx_stop_sd_clock(sc)))
@@ -1491,7 +1495,7 @@ rtsx_bus_power_off(struct rtsx_softc *sc)
 static int
 rtsx_bus_power_on(struct rtsx_softc *sc)
 {
-	if (bootverbose)
+	if (bootverbose || rtsx_debug)
 		device_printf(sc->rtsx_dev, "rtsx_bus_power_on()\n");
 
 	/* Select SD card. */
@@ -2379,7 +2383,7 @@ rtsx_mmcbr_update_ios(device_t bus, device_t child)
 		if ((error = rtsx_write(sc, RTSX_SD_CFG1, RTSX_BUS_WIDTH_MASK, bus_width)))
 			return (error);
 
-		if (bootverbose) {
+		if (bootverbose || rtsx_debug) {
 			char *busw[] = {
 					"1 bit",
 					"4 bits",
@@ -2494,7 +2498,7 @@ rtsx_mmcbr_switch_vccq(device_t bus, device_t child __unused)
 		DELAY(300);
 	}
 
-	if (bootverbose)
+	if (bootverbose || rtsx_debug)
 		device_printf(sc->rtsx_dev, "rtsx_mmcbr_switch_vccq(%d)\n", vccq);
 
 	return (0);
@@ -2706,6 +2710,8 @@ rtsx_attach(device_t dev)
 	sc->rtsx_timeout = 2;
 	ctx = device_get_sysctl_ctx(dev);
 	tree = SYSCTL_CHILDREN(device_get_sysctl_tree(dev));
+	SYSCTL_ADD_INT(ctx, tree, OID_AUTO, "debug", CTLFLAG_RW,
+		       &rtsx_debug, 0, "Debugging flag");
 	SYSCTL_ADD_INT(ctx, tree, OID_AUTO, "req_timeout", CTLFLAG_RW,
 		       &sc->rtsx_timeout, 0, "Request timeout in seconds");
 
