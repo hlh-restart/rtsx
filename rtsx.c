@@ -480,7 +480,7 @@ rtsx_intr(void *arg)
 	WRITE4(sc, RTSX_BIPR, status);
 
 	if ((enabled & status) == 0) {
-		device_printf(sc->rtsx_dev, "Spurious interrupt\n");
+		device_printf(sc->rtsx_dev, "Spurious interrupt - enabled: %#x, status: %#x\n", enabled, status);
 		RTSX_UNLOCK(sc);
 		return;
 	}
