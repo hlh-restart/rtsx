@@ -479,11 +479,19 @@ rtsx_intr(void *arg)
 	/* Ack interrupts. */
 	WRITE4(sc, RTSX_BIPR, status);
 
-	if (((enabled & status) == 0) || status == 0xffffffff) {
+	if ((enabled & status) == 0) {
 		device_printf(sc->rtsx_dev, "Spurious interrupt\n");
 		RTSX_UNLOCK(sc);
 		return;
 	}
+
+	if (status == 0xffffffff) {
+		sc->rtsx_intr_status = RTSX_TRANS_OK_INT;
+		wakeup(&sc->rtsx_intr_status);
+		RTSX_UNLOCK(sc);
+		return;
+	}
+
 	if (status & RTSX_SD_WRITE_PROTECT)
 		sc->rtsx_read_only = 1;
 	else
@@ -889,7 +897,7 @@ rtsx_init(struct rtsx_softc *sc)
 	}
 
 	/* Set mcu_cnt to 7 to ensure data can be sampled properly. */
-	RTSX_SET(sc, RTSX_CLK_DIV, 0x07);
+	RTSX_BITOP(sc, RTSX_CLK_DIV, 0x07, 0x07);
 
 	/* Disable sleep mode. */
 	RTSX_CLR(sc, RTSX_HOST_SLEEP_STATE,
