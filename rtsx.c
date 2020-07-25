@@ -486,6 +486,7 @@ rtsx_intr(void *arg)
 	}
 
 	if (status == 0xffffffff) {
+		device_printf(sc->rtsx_dev, "Interrupt handler - enabled: %#x, status: %#x\n", enabled, status);
 		sc->rtsx_intr_status = RTSX_TRANS_OK_INT;
 		wakeup(&sc->rtsx_intr_status);
 		RTSX_UNLOCK(sc);
