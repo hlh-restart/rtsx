@@ -791,7 +791,7 @@ rtsx_init(struct rtsx_softc *sc)
 
 	/* Enable interrupts. */
 	WRITE4(sc, RTSX_BIER,
-	       RTSX_TRANS_OK_INT_EN | RTSX_TRANS_FAIL_INT_EN | RTSX_SD_INT_EN);
+	       RTSX_TRANS_OK_INT_EN | RTSX_TRANS_FAIL_INT_EN | RTSX_SD_INT_EN | RTSX_MS_INT_EN);
 
 	/* Power on SSC clock. */
 	RTSX_CLR(sc, RTSX_FPDCTL, RTSX_SSC_POWER_DOWN);
