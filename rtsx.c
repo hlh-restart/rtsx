@@ -635,7 +635,7 @@ rtsx_is_card_present(struct rtsx_softc *sc)
 static int
 rtsx_init(struct rtsx_softc *sc)
 {
-	uint32_t status;
+//	uint32_t status;
 	uint8_t version;
 	int error;
 
@@ -783,11 +783,11 @@ rtsx_init(struct rtsx_softc *sc)
 		device_printf(sc->rtsx_dev, "rtsx_init() rtsx_flags = 0x%04x\n", sc->rtsx_flags);
 
 	/* Enable interrupt write-clear (default is read-clear). */
-	RTSX_CLR(sc, RTSX_NFTS_TX_CTRL, RTSX_INT_READ_CLR);
+//	RTSX_CLR(sc, RTSX_NFTS_TX_CTRL, RTSX_INT_READ_CLR);
 
 	/* Clear any pending interrupts. */
-	status = READ4(sc, RTSX_BIPR);
-	WRITE4(sc, RTSX_BIPR, status);
+//	status = READ4(sc, RTSX_BIPR);
+//	WRITE4(sc, RTSX_BIPR, status);
 
 	/* Enable interrupts. */
 	WRITE4(sc, RTSX_BIER,
@@ -931,6 +931,13 @@ rtsx_init(struct rtsx_softc *sc)
 	/* Set RC oscillator to 400K. */
 	RTSX_CLR(sc, RTSX_RCCTL, RTSX_RCCTL_F_2M);
 
+	/* Enable interrupt write-clear (default is read-clear). */
+	RTSX_CLR(sc, RTSX_NFTS_TX_CTRL, RTSX_INT_READ_CLR);
+
+	/* OC power down. */
+	/*!!! added from Linux */
+	RTSX_BITOP(sc, RTSX_FPDCTL, RTSX_SD_OC_POWER_DOWN, RTSX_SD_OC_POWER_DOWN);
+
 	/* Request clock by driving CLKREQ pin to zero. */
 	/*!!! only in OpenBSD. */
 //	RTSX_SET(sc, RTSX_PETXCFG, RTSX_PETXCFG_CLKREQ_PIN);
@@ -986,7 +993,7 @@ rtsx_init(struct rtsx_softc *sc)
 		RTSX_BITOP(sc, RTSX_PETXCFG, 0x08, 0x08);
 		/* Switch LDO3318 source from DV33 to card_3v3. */
 		RTSX_CLR(sc, RTSX_LDO_PWR_SEL, RTSX_LDO_PWR_SEL_DV33);
-		RTSX_BITOP(sc, RTSX_LDO_PWR_SEL,RTSX_LDO_PWR_SEL_DV33, RTSX_LDO_PWR_SEL_3V3);
+		RTSX_BITOP(sc, RTSX_LDO_PWR_SEL, RTSX_LDO_PWR_SEL_DV33, RTSX_LDO_PWR_SEL_3V3);
 		/* Set default OLT blink period. */
 		RTSX_BITOP(sc, RTSX_OLT_LED_CTL, 0x0F, RTSX_OLT_LED_PERIOD);
 		/* Configure driving. */
@@ -1423,8 +1430,9 @@ rtsx_bus_power_off(struct rtsx_softc *sc)
 	if (bootverbose || rtsx_debug)
 		device_printf(sc->rtsx_dev, "rtsx_bus_power_off()\n");
 
-	if ((error = rtsx_stop_sd_clock(sc)))
-		return (error);
+	/*!!! Not in Linux */
+//	if ((error = rtsx_stop_sd_clock(sc)))
+//		return (error);
 
 	/* Disable SD clock. */
 	RTSX_CLR(sc, RTSX_CARD_CLK_EN, RTSX_SD_CLK_EN);
