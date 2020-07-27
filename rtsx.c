@@ -1425,7 +1425,7 @@ rtsx_switch_sd_clock(struct rtsx_softc *sc, uint8_t clk, uint8_t n, uint8_t div,
 static int
 rtsx_bus_power_off(struct rtsx_softc *sc)
 {
-	int error;
+//	int error;
 
 	if (bootverbose || rtsx_debug)
 		device_printf(sc->rtsx_dev, "rtsx_bus_power_off()\n");
