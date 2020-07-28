@@ -132,26 +132,26 @@ static const struct rtsx_device {
 	const char	*desc;
 } rtsx_devices[] = {
 #ifndef RTSX_INVERSION
-	{ 0x10ec,	0x5209,	RTSX_F_5209,	"Realtek RTS5209 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x5227,	RTSX_F_5227,	"Realtek RTS5227 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x5229,	RTSX_F_5229,	"Realtek RTS5229 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x522a,	RTSX_F_522A,	"Realtek RTS522A PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x525a,	RTSX_F_525A,	"Realtek RTS525A PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x5249,	RTSX_F_5249,	"Realtek RTS5249 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x5286,	RTSX_F_8402,	"Realtek RTL8402 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x5289,	RTSX_F_8411,	"Realtek RTL8411 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x5287,	RTSX_F_8411B,	"Realtek RTL8411B PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5209,	RTSX_F_5209,	"1.0a Realtek RTS5209 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5227,	RTSX_F_5227,	"1.0a Realtek RTS5227 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5229,	RTSX_F_5229,	"1.0a Realtek RTS5229 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x522a,	RTSX_F_522A,	"1.0a Realtek RTS522A PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x525a,	RTSX_F_525A,	"1.0a Realtek RTS525A PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5249,	RTSX_F_5249,	"1.0a Realtek RTS5249 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5286,	RTSX_F_8402,	"1.0a Realtek RTL8402 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5289,	RTSX_F_8411,	"1.0a Realtek RTL8411 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5287,	RTSX_F_8411B,	"1.0a Realtek RTL8411B PCI MMC/SD Card Reader"},
 	{ 0, 		0,	0,		NULL}
 #else
-	{ 0x10ec,	0x5209,	RTSX_F_5209,	"Realtek RTS5209! PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x5227,	RTSX_F_5227,	"Realtek RTS5227! PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x5229,	RTSX_F_5229,	"Realtek RTS5229! PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x522a,	RTSX_F_522A,	"Realtek RTS522A! PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x525a,	RTSX_F_525A,	"Realtek RTS525A! PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x5249,	RTSX_F_5249,	"Realtek RTS5249! PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x5286,	RTSX_F_8402,	"Realtek RTL8402! PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x5289,	RTSX_F_8411,	"Realtek RTL8411! PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x5287,	RTSX_F_8411B,	"Realtek RTL8411B! PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5209,	RTSX_F_5209,	"1.0A Realtek RTS5209 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5227,	RTSX_F_5227,	"1.0A Realtek RTS5227 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5229,	RTSX_F_5229,	"1.0A Realtek RTS5229 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x522a,	RTSX_F_522A,	"1.0A Realtek RTS522A PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x525a,	RTSX_F_525A,	"1.0A Realtek RTS525A PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5249,	RTSX_F_5249,	"1.0A Realtek RTS5249 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5286,	RTSX_F_8402,	"1.0A Realtek RTL8402 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5289,	RTSX_F_8411,	"1.0A Realtek RTL8411 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5287,	RTSX_F_8411B,	"1.0A Realtek RTL8411B PCI MMC/SD Card Reader"},
 	{ 0, 		0,	0,		NULL}
 #endif
 };
