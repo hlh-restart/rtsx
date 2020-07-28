@@ -530,8 +530,6 @@ rtsx_wait_intr(struct rtsx_softc *sc, int mask, int timeout)
 		status = sc->rtsx_intr_status & mask;
 	}
 
-	RTSX_LOCK(sc);
-
 	sc->rtsx_intr_status &= ~status;
 
 	/* Has the card disappeared? */
@@ -541,8 +539,6 @@ rtsx_wait_intr(struct rtsx_softc *sc, int mask, int timeout)
 	/* Does transfer fail? */
 	if (error == 0 && (status & RTSX_TRANS_FAIL_INT))
 		error = MMC_ERR_FAILED;
-
-	RTSX_UNLOCK(sc);
 
 	return (error);
 }
