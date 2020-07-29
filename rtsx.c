@@ -631,6 +631,7 @@ rtsx_is_card_present(struct rtsx_softc *sc)
 static int
 rtsx_init(struct rtsx_softc *sc)
 {
+	bool rtsx_init_debug = true;
 //	uint32_t status;
 	uint8_t version;
 	int error;
@@ -679,12 +680,12 @@ rtsx_init(struct rtsx_softc *sc)
 		if (!(reg & 0x80)) {
 			sc->rtsx_card_drive_sel = (reg >> 8) & 0x3F;
 			sc->rtsx_sd30_drive_sel_3v3 = reg & 0x07;
-//!!!			if (bootverbose)
+		} else {
+			device_printf(sc->rtsx_dev, "pci_read_config() error - reg = 0x%08x\n", reg);
+		}
+		if (bootverbose || rtsx_init_debug)
 			device_printf(sc->rtsx_dev, "card_drive_sel = 0x%02x, sd30_drive_sel_3v3 = 0x%02x\n",
 				      sc->rtsx_card_drive_sel, sc->rtsx_sd30_drive_sel_3v3);
-		} else {
-			device_printf(sc->rtsx_dev, "pci_read_config() error\n");
-		}
 	} else if (sc->rtsx_flags & (RTSX_F_5227 | RTSX_F_522A)) {
 		uint32_t reg;
 
@@ -697,14 +698,14 @@ rtsx_init(struct rtsx_softc *sc)
 			sc->rtsx_sd30_drive_sel_3v3 = (reg >> 5) & 0x03;
 			if (reg & 0x4000)
 				sc->rtsx_flags |= RTSX_REVERSE_SOCKET;
-//!!!			if (bootverbose)
+		} else {
+			device_printf(sc->rtsx_dev, "pci_read_config() error - reg = 0x%08x\n", reg);
+		}
+		if (bootverbose || rtsx_init_debug)
 			device_printf(sc->rtsx_dev,
 				      "card_drive_sel = 0x%02x, sd30_drive_sel_3v3 = 0x%02x, reverse_socket is %s\n",
 				      sc->rtsx_card_drive_sel, sc->rtsx_sd30_drive_sel_3v3,
 				      (sc->rtsx_flags & RTSX_REVERSE_SOCKET) ? "true" : "false");
-		} else {
-			device_printf(sc->rtsx_dev, "pci_read_config() error\n");
-		}
 	} else if (sc->rtsx_flags & RTSX_F_5229) {
 		uint32_t reg;
 
@@ -715,12 +716,12 @@ rtsx_init(struct rtsx_softc *sc)
 			sc->rtsx_card_drive_sel |= ((reg >> 25) & 0x01) << 6;
 			reg = pci_read_config(sc->rtsx_dev, RTSX_PCR_SETTING_REG2, 4);
 			sc->rtsx_sd30_drive_sel_3v3 = rtsx_map_sd_drive((reg >> 5) & 0x03);
-//!!!			if (bootverbose)
+		} else {
+			device_printf(sc->rtsx_dev, "pci_read_config() error - reg = 0x%08x\n", reg);
+		}
+		if (bootverbose || rtsx_init_debug)
 			device_printf(sc->rtsx_dev, "card_drive_sel = 0x%02x, sd30_drive_sel_3v3 = 0x%02x\n",
 				      sc->rtsx_card_drive_sel, sc->rtsx_sd30_drive_sel_3v3);
-		} else {
-			device_printf(sc->rtsx_dev, "pci_read_config() error\n");
-		}
 	} else if (sc->rtsx_flags & (RTSX_F_525A | RTSX_F_5249)) {
 		uint32_t reg;
 
@@ -733,14 +734,14 @@ rtsx_init(struct rtsx_softc *sc)
 			sc->rtsx_sd30_drive_sel_3v3 = (reg >> 5) & 0x03;
 			if (reg & 0x4000)
 				sc->rtsx_flags |= RTSX_REVERSE_SOCKET;
-//!!!			if (bootverbose)
+		} else {
+			device_printf(sc->rtsx_dev, "pci_read_config() error - reg = 0x%08x\n", reg);
+		}
+		if (bootverbose || rtsx_init_debug)
 			device_printf(sc->rtsx_dev,
 				      "card_drive_sel = 0x%02x, sd30_drive_sel_3v3 = 0x%02x, reverse_socket is %s\n",
 				      sc->rtsx_card_drive_sel, sc->rtsx_sd30_drive_sel_3v3,
 				      (sc->rtsx_flags & RTSX_REVERSE_SOCKET) ? "true" : "false");
-		} else {
-			device_printf(sc->rtsx_dev, "pci_read_config() error\n");
-		}
 	} else if (sc->rtsx_flags & (RTSX_F_8402 | RTSX_F_8411)) {
 		uint32_t reg1;
 		uint8_t  reg3;
@@ -753,13 +754,13 @@ rtsx_init(struct rtsx_softc *sc)
 			sc->rtsx_card_drive_sel |= ((reg1 >> 25) & 0x01) << 6;
 			reg3 = pci_read_config(sc->rtsx_dev, RTSX_PCR_SETTING_REG3, 1);
 			sc->rtsx_sd30_drive_sel_3v3 = (reg3 >> 5) & 0x07;
-//!!!			if (bootverbose)
+		} else {
+			device_printf(sc->rtsx_dev, "pci_read_config() error - reg1 = 0x%08x\n", reg1);
+		}
+		if (bootverbose || rtsx_init_debug)
 			device_printf(sc->rtsx_dev,
 				      "card_drive_sel = 0x%02x, sd30_drive_sel_3v3 = 0x%02x\n",
 				      sc->rtsx_card_drive_sel, sc->rtsx_sd30_drive_sel_3v3);
-		} else {
-			device_printf(sc->rtsx_dev, "pci_read_config() error\n");
-		}
 	} else if (sc->rtsx_flags & RTSX_F_8411B) {
 		uint32_t reg;
 
@@ -768,17 +769,20 @@ rtsx_init(struct rtsx_softc *sc)
 		reg = pci_read_config(sc->rtsx_dev, RTSX_PCR_SETTING_REG1, 4);
 		if (!(reg & 0x1000000)) {
 			sc->rtsx_sd30_drive_sel_3v3 = rtsx_map_sd_drive(reg & 0x03);
-//!!!			if (bootverbose)
-			device_printf(sc->rtsx_dev, "sd30_drive_sel_3v3 = 0x%02x\n", sc->rtsx_sd30_drive_sel_3v3);
 		} else {
-			device_printf(sc->rtsx_dev, "pci_read_config() error\n");
+			device_printf(sc->rtsx_dev, "pci_read_config() error - reg = 0x%08x\n", reg);
 		}
+		if (bootverbose || rtsx_init_debug)
+			device_printf(sc->rtsx_dev,
+				      "card_drive_sel = 0x%02x, sd30_drive_sel_3v3 = 0x%02x\n",
+				      sc->rtsx_card_drive_sel, sc->rtsx_sd30_drive_sel_3v3);
 	}
 
-	if (bootverbose)
+	if (bootverbose || rtsx_init_debug)
 		device_printf(sc->rtsx_dev, "rtsx_init() rtsx_flags = 0x%04x\n", sc->rtsx_flags);
 
 	/* Enable interrupt write-clear (default is read-clear). */
+	/*!!! done later */
 //	RTSX_CLR(sc, RTSX_NFTS_TX_CTRL, RTSX_INT_READ_CLR);
 
 	/* Clear any pending interrupts. */
