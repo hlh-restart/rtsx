@@ -134,26 +134,26 @@ static const struct rtsx_device {
 	const char	*desc;
 } rtsx_devices[] = {
 #ifndef RTSX_INVERSION
-	{ 0x10ec,	0x5209,	RTSX_F_5209,	"1.0b Realtek RTS5209 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x5227,	RTSX_F_5227,	"1.0b Realtek RTS5227 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x5229,	RTSX_F_5229,	"1.0b Realtek RTS5229 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x522a,	RTSX_F_522A,	"1.0b Realtek RTS522A PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x525a,	RTSX_F_525A,	"1.0b Realtek RTS525A PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x5249,	RTSX_F_5249,	"1.0b Realtek RTS5249 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x5286,	RTSX_F_8402,	"1.0b Realtek RTL8402 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x5289,	RTSX_F_8411,	"1.0b Realtek RTL8411 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x5287,	RTSX_F_8411B,	"1.0b Realtek RTL8411B PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5209,	RTSX_F_5209,	"1.0c Realtek RTS5209 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5227,	RTSX_F_5227,	"1.0c Realtek RTS5227 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5229,	RTSX_F_5229,	"1.0c Realtek RTS5229 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x522a,	RTSX_F_522A,	"1.0c Realtek RTS522A PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x525a,	RTSX_F_525A,	"1.0c Realtek RTS525A PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5249,	RTSX_F_5249,	"1.0c Realtek RTS5249 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5286,	RTSX_F_8402,	"1.0c Realtek RTL8402 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5289,	RTSX_F_8411,	"1.0c Realtek RTL8411 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5287,	RTSX_F_8411B,	"1.0c Realtek RTL8411B PCI MMC/SD Card Reader"},
 	{ 0, 		0,	0,		NULL}
 #else
-	{ 0x10ec,	0x5209,	RTSX_F_5209,	"1.0B Realtek RTS5209 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x5227,	RTSX_F_5227,	"1.0B Realtek RTS5227 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x5229,	RTSX_F_5229,	"1.0B Realtek RTS5229 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x522a,	RTSX_F_522A,	"1.0B Realtek RTS522A PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x525a,	RTSX_F_525A,	"1.0B Realtek RTS525A PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x5249,	RTSX_F_5249,	"1.0B Realtek RTS5249 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x5286,	RTSX_F_8402,	"1.0B Realtek RTL8402 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x5289,	RTSX_F_8411,	"1.0B Realtek RTL8411 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	0x5287,	RTSX_F_8411B,	"1.0B Realtek RTL8411B PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5209,	RTSX_F_5209,	"1.0C Realtek RTS5209 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5227,	RTSX_F_5227,	"1.0C Realtek RTS5227 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5229,	RTSX_F_5229,	"1.0C Realtek RTS5229 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x522a,	RTSX_F_522A,	"1.0C Realtek RTS522A PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x525a,	RTSX_F_525A,	"1.0C Realtek RTS525A PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5249,	RTSX_F_5249,	"1.0C Realtek RTS5249 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5286,	RTSX_F_8402,	"1.0C Realtek RTL8402 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5289,	RTSX_F_8411,	"1.0C Realtek RTL8411 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	0x5287,	RTSX_F_8411B,	"1.0C Realtek RTL8411B PCI MMC/SD Card Reader"},
 	{ 0, 		0,	0,		NULL}
 #endif
 };
@@ -502,7 +502,7 @@ rtsx_intr(void *arg)
 		RTSX_UNLOCK(sc);
 		return;
 	}
-	if (status & (RTSX_TRANS_OK_INT | RTSX_TRANS_FAIL_INT)) {
+	if (status & (RTSX_TRANS_OK_INT | RTSX_TRANS_FAIL_INT | RTSX_DELINK_INT)) {
 		sc->rtsx_intr_status |= status;
 		wakeup(&sc->rtsx_intr_status);
 	}
@@ -515,7 +515,7 @@ rtsx_wait_intr(struct rtsx_softc *sc, int mask, int timeout)
 	int status;
 	int error = 0;
 
-	mask |= RTSX_TRANS_FAIL_INT;
+	mask |= RTSX_TRANS_FAIL_INT | RTSX_DELINK_INT;
 
 	status = sc->rtsx_intr_status & mask;
 	while (status == 0) {
@@ -539,7 +539,7 @@ rtsx_wait_intr(struct rtsx_softc *sc, int mask, int timeout)
 		error = MMC_ERR_INVALID;
 
 	/* Does transfer fail? */
-	if (error == 0 && (status & RTSX_TRANS_FAIL_INT))
+	if (error == 0 && (status & (RTSX_TRANS_FAIL_INT | RTSX_DELINK_INT)))
 		error = MMC_ERR_FAILED;
 
 	return (error);
@@ -815,7 +815,7 @@ rtsx_init(struct rtsx_softc *sc)
 		if ((error = rtsx_write_phy(sc, 0x00, 0xBA42)))
 			return (error);
 	} else if (sc->rtsx_flags & RTSX_F_5229) {
-		/* Some magic numbers from linux driver. */
+		/* Optimize RX sensitivity. */
 		if ((error = rtsx_write_phy(sc, 0x00, 0xBA42)))
 			return (error);
 	} else if (sc->rtsx_flags & RTSX_F_522A) {
@@ -1118,6 +1118,7 @@ rtsx_init(struct rtsx_softc *sc)
 		/* Enable SD interrupt. */
 		RTSX_BITOP(sc, RTSX_CARD_PAD_CTL, RTSX_CD_DISABLE_MASK | RTSX_CD_AUTO_DISABLE,
 			   RTSX_CD_ENABLE);
+		/* Clear hw_pfm_en to disable hardware PFM mode. */
 		RTSX_BITOP(sc, RTSX_FUNC_FORCE_CTL, 0x06, 0x00);
 	}
 
@@ -2843,6 +2844,10 @@ rtsx_detach(device_t dev)
 		device_printf(dev, "Detach - Vendor ID: 0x%x - Device ID: 0x%x\n",
 			      pci_get_vendor(dev), pci_get_device(dev));
 
+	/* Disable interrupts. */
+	sc->rtsx_intr_enabled = 0;
+	WRITE4(sc, RTSX_BIER, sc->rtsx_intr_enabled);
+
 	/* Stop device. */
 	error = device_delete_children(sc->rtsx_dev);
 	sc->rtsx_mmc_dev = NULL;
@@ -2875,6 +2880,8 @@ rtsx_shutdown(device_t dev)
 
 	if (bootverbose)
 		device_printf(dev, "Shutdown\n");
+
+	rtsx_detach(dev);
 
 	return (0);
 }

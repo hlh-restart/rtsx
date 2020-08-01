@@ -56,6 +56,7 @@
 #define	RTSX_XD_INT		(1U << 27)
 #define	RTSX_MS_INT		(1U << 26)
 #define	RTSX_SD_INT		(1U << 25)
+#define	RTSX_DELINK_INT		(1U << 24)
 #define	RTSX_SD_WRITE_PROTECT	(1U << 19)
 #define	RTSX_XD_EXIST		(1U << 18)
 #define	RTSX_MS_EXIST		(1U << 17)
