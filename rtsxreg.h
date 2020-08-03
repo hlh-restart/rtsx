@@ -201,6 +201,7 @@
 
 /* Internal clock. */
 #define	RTSX_CLK_CTL			0xFC02
+#define	RTSX_CHANGE_CLK			0x01
 #define	RTSX_CLK_LOW_FREQ		0x01
 
 /* Internal clock divisor values. */
@@ -264,6 +265,11 @@
 #define	RTSX_GPIO_CTL			0xFC1F
 #define	RTSX_GPIO_LED_ON		0x02
 
+#define	RTSX_SD_VPCLK0_CTL		0xFC2A
+#define	RTSX_SD_VPCLK1_CTL		0xFC2B
+#define	RTSX_PHASE_SELECT_MASK		0x1F
+#define	RTSX_PHASE_NOT_RESET		0x40
+
 /* Host controller commands. */
 #define	RTSX_READ_REG_CMD		0
 #define	RTSX_WRITE_REG_CMD		1
@@ -321,6 +327,7 @@
 #define	RTSX_BUS_WIDTH_1		0x00
 #define	RTSX_BUS_WIDTH_4		0x01
 #define	RTSX_BUS_WIDTH_8		0x02
+#define	RTSX_SD_ASYNC_FIFO_NOT_RST	0x10
 #define	RTSX_BUS_WIDTH_MASK		0x03
 
 /* SD configuration register 2 (SD command response flags). */
@@ -347,6 +354,9 @@
 #define	RTSX_SD_RSP_TYPE_R5		0x01
 #define	RTSX_SD_RSP_TYPE_R6		0x01
 #define	RTSX_SD_RSP_TYPE_R7		0x01
+
+#define	RTSX_SD_CFG3			0xFDA2
+#define	RTSX_SD_RSP_80CLK_TIMEOUT_EN	0x01
 
 #define	RTSX_SD_STAT1			0xFDA3
 #define	RTSX_SD_CRC7_ERR		0x80
@@ -462,7 +472,10 @@
 #define	RTSX_SD_TRANSFER_ERR		0x10
 
 #define	RTSX_SD_CMD_STATE		0xFDB5
+#define	RTSX_SD_CMD_IDLE		0x80
+
 #define	RTSX_SD_DATA_STATE		0xFDB6
+#define	RTSX_SD_DATA_IDLE		0x80
 
 /* ping-pong buffer 2 */
 #define	RTSX_PPBUF_BASE2		0xFA00
@@ -758,4 +771,7 @@
 #define	RTSX_PCR_SETTING_REG1		0x724
 #define	RTSX_PCR_SETTING_REG2		0x814
 #define	RTSX_PCR_SETTING_REG3		0x747
+
+#define RTSX_RX_PHASE_MAX		32
+#define RTSX_RX_TUNING_CNT		3
 #endif
