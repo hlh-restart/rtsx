@@ -482,7 +482,8 @@ static void
 rtsx_intr(void *arg)
 {
 	struct rtsx_softc *sc = arg;
-	uint32_t enabled, status;
+	uint32_t	enabled;
+	uint32_t	status;
 
 	RTSX_LOCK(sc);
 	enabled = sc->rtsx_intr_enabled;
@@ -525,8 +526,8 @@ rtsx_intr(void *arg)
 static int
 rtsx_wait_intr(struct rtsx_softc *sc, int mask, int timeout)
 {
-	int status;
-	int error = 0;
+	int	status;
+	int	error = 0;
 
 	mask |= RTSX_TRANS_FAIL_INT | RTSX_DELINK_INT;
 
@@ -567,8 +568,8 @@ rtsx_wait_intr(struct rtsx_softc *sc, int mask, int timeout)
 static void
 rtsx_handle_card_present(struct rtsx_softc *sc)
 {
-	bool was_present;
-	bool is_present;
+	bool	was_present;
+	bool	is_present;
 
 	was_present = sc->rtsx_mmc_dev != NULL;
 	is_present = rtsx_is_card_present(sc);
@@ -649,10 +650,9 @@ rtsx_is_card_present(struct rtsx_softc *sc)
 static int
 rtsx_init(struct rtsx_softc *sc)
 {
-	bool rtsx_init_debug = true;
-//	uint32_t status;
-	uint8_t version;
-	int error;
+	bool	rtsx_init_debug = true;
+	uint8_t	version;
+	int	error;
 
 	sc->rtsx_host.host_ocr = RTSX_SUPPORTED_VOLTAGE;
 	sc->rtsx_host.f_min = RTSX_SDCLK_250KHZ;
@@ -804,15 +804,6 @@ rtsx_init(struct rtsx_softc *sc)
 
 	if (bootverbose || rtsx_init_debug)
 		device_printf(sc->rtsx_dev, "rtsx_init() rtsx_flags: 0x%04x\n", sc->rtsx_flags);
-
-	/* Enable interrupt write-clear (default is read-clear). */
-	/*!!! done later */
-//	RTSX_CLR(sc, RTSX_NFTS_TX_CTRL, RTSX_INT_READ_CLR);
-
-	/* Clear any pending interrupts. */
-	/*!!! not in Linux */
-//	status = READ4(sc, RTSX_BIPR);
-//	WRITE4(sc, RTSX_BIPR, status);
 
 	/* Enable interrupts. */
 	sc->rtsx_intr_enabled = RTSX_TRANS_OK_INT_EN | RTSX_TRANS_FAIL_INT_EN | RTSX_SD_INT_EN | RTSX_MS_INT_EN;
@@ -1163,7 +1154,7 @@ rtsx_init(struct rtsx_softc *sc)
 static int
 rtsx_map_sd_drive(int index)
 {
-	uint8_t sd_drive[4] =
+	uint8_t	sd_drive[4] =
 		{
 		 0x01,	/* Type D */
 		 0x02,	/* Type C */
@@ -1177,11 +1168,11 @@ rtsx_map_sd_drive(int index)
 static int
 rtsx_rts5227_fill_driving(struct rtsx_softc *sc)
 {
-	u_char driving_3v3[4][3] = {
-				    {0x13, 0x13, 0x13},
-				    {0x96, 0x96, 0x96},
-				    {0x7F, 0x7F, 0x7F},
-				    {0x96, 0x96, 0x96},
+	u_char	driving_3v3[4][3] = {
+				     {0x13, 0x13, 0x13},
+				     {0x96, 0x96, 0x96},
+				     {0x7F, 0x7F, 0x7F},
+				     {0x96, 0x96, 0x96},
 	};
 	RTSX_WRITE(sc, RTSX_SD30_CLK_DRIVE_SEL, driving_3v3[sc->rtsx_sd30_drive_sel_3v3][0]);
 	RTSX_WRITE(sc, RTSX_SD30_CMD_DRIVE_SEL, driving_3v3[sc->rtsx_sd30_drive_sel_3v3][1]);
@@ -1194,11 +1185,11 @@ rtsx_rts5227_fill_driving(struct rtsx_softc *sc)
 static int
 rtsx_rts5249_fill_driving(struct rtsx_softc *sc)
 {
-	u_char driving_3v3[4][3] = {
-				    {0x11, 0x11, 0x18},
-				    {0x55, 0x55, 0x5C},
-				    {0xFF, 0xFF, 0xFF},
-				    {0x96, 0x96, 0x96},
+	u_char	driving_3v3[4][3] = {
+				     {0x11, 0x11, 0x18},
+				     {0x55, 0x55, 0x5C},
+				     {0xFF, 0xFF, 0xFF},
+				     {0x96, 0x96, 0x96},
 	};
 	RTSX_WRITE(sc, RTSX_SD30_CLK_DRIVE_SEL, driving_3v3[sc->rtsx_sd30_drive_sel_3v3][0]);
 	RTSX_WRITE(sc, RTSX_SD30_CMD_DRIVE_SEL, driving_3v3[sc->rtsx_sd30_drive_sel_3v3][1]);
@@ -1210,7 +1201,7 @@ rtsx_rts5249_fill_driving(struct rtsx_softc *sc)
 static int
 rtsx_read(struct rtsx_softc *sc, uint16_t addr, uint8_t *val)
 {
-	int tries = 1024;
+	int	 tries = 1024;
 	uint32_t reg;
 
 	WRITE4(sc, RTSX_HAIMR, RTSX_HAIMR_BUSY |
@@ -1229,8 +1220,8 @@ rtsx_read(struct rtsx_softc *sc, uint16_t addr, uint8_t *val)
 static int
 rtsx_read_cfg(struct rtsx_softc *sc, uint8_t func, uint16_t addr, uint32_t *val)
 {
-	int tries = 1024;
-	uint8_t data0, data1, data2, data3, rwctl;
+	int	tries = 1024;
+	uint8_t	data0, data1, data2, data3, rwctl;
 
 	RTSX_WRITE(sc, RTSX_CFGADDR0, addr);
 	RTSX_WRITE(sc, RTSX_CFGADDR1, addr >> 8);
@@ -1258,7 +1249,7 @@ rtsx_read_cfg(struct rtsx_softc *sc, uint8_t func, uint16_t addr, uint32_t *val)
 static int
 rtsx_write(struct rtsx_softc *sc, uint16_t addr, uint8_t mask, uint8_t val)
 {
-	int tries = 1024;
+	int 	 tries = 1024;
 	uint32_t reg;
 
 	WRITE4(sc, RTSX_HAIMR,
@@ -1281,8 +1272,8 @@ rtsx_write(struct rtsx_softc *sc, uint16_t addr, uint8_t mask, uint8_t val)
 static int
 rtsx_read_phy(struct rtsx_softc *sc, uint8_t addr, uint16_t *val)
 {
-	int tries = 100000;
-	uint8_t data0, data1, rwctl;
+	int	tries = 100000;
+	uint8_t	data0, data1, rwctl;
 
 	RTSX_WRITE(sc, RTSX_PHY_ADDR, addr);
 	RTSX_WRITE(sc, RTSX_PHY_RWCTL, RTSX_PHY_BUSY | RTSX_PHY_READ);
@@ -1305,8 +1296,8 @@ rtsx_read_phy(struct rtsx_softc *sc, uint8_t addr, uint16_t *val)
 static int
 rtsx_write_phy(struct rtsx_softc *sc, uint8_t addr, uint16_t val)
 {
-	int tries = 100000;
-	uint8_t rwctl;
+	int	tries = 100000;
+	uint8_t	rwctl;
 
 	RTSX_WRITE(sc, RTSX_PHY_DATA0, val);
 	RTSX_WRITE(sc, RTSX_PHY_DATA1, val >> 8);
@@ -1387,9 +1378,9 @@ rtsx_set_sd_timing(struct rtsx_softc *sc, enum mmc_bus_timing timing)
 static int
 rtsx_set_sd_clock(struct rtsx_softc *sc, uint32_t freq)
 {
-	uint8_t clk;
-	uint8_t clk_divider, n, div, mcu;
-	int error = 0;
+	uint8_t	clk;
+	uint8_t	clk_divider, n, div, mcu;
+	int	error = 0;
 
 	if (bootverbose || rtsx_debug)
 		device_printf(sc->rtsx_dev, "rtsx_set_sd_clock(%u)\n", freq);
@@ -1508,7 +1499,7 @@ rtsx_switch_sd_clock(struct rtsx_softc *sc, uint8_t clk, uint8_t n, uint8_t div,
 static int
 rtsx_bus_power_off(struct rtsx_softc *sc)
 {
-//	int error;
+//	int	error;
 
 	if (bootverbose || rtsx_debug)
 		device_printf(sc->rtsx_dev, "rtsx_bus_power_off()\n");
@@ -1784,8 +1775,8 @@ rtsx_sd_change_rx_phase(struct rtsx_softc *sc, uint8_t sample_point){
 
 static void
 rtsx_sd_tuning_rx_phase(struct rtsx_softc *sc, uint32_t *phase_map) {
-	int i;
-	int error;
+	int	 i;
+	int	 error;
 	uint32_t raw_phase_map = 0;
 
 	for (i = 0; i < RTSX_RX_PHASE_MAX; i++) {
@@ -1799,9 +1790,9 @@ rtsx_sd_tuning_rx_phase(struct rtsx_softc *sc, uint32_t *phase_map) {
 
 static int
 rtsx_sd_tuning_rx_cmd(struct rtsx_softc *sc, uint8_t sample_point){
-	int error;
         struct mmc_request req = {};
         struct mmc_command cmd = {};
+	int	error;
 
 	cmd.opcode = MMC_SEND_TUNING_BLOCK;
 	cmd.arg = 0;
@@ -1842,8 +1833,8 @@ rtsx_sd_tuning_rx_cmd(struct rtsx_softc *sc, uint8_t sample_point){
 
 static void
 rtsx_sd_wait_data_idle(struct rtsx_softc *sc) {
-	int i;
-	uint8_t val;
+	int	i;
+	uint8_t	val;
 
 	for (i = 0; i < 100; i++) {
 		(void)rtsx_read(sc, RTSX_SD_DATA_STATE, &val);
@@ -1856,9 +1847,9 @@ rtsx_sd_wait_data_idle(struct rtsx_softc *sc) {
 static uint8_t
 rtsx_sd_search_final_rx_phase(struct rtsx_softc *sc, uint32_t phase_map)
 {
-	int start = 0, len = 0;
-	int start_final = 0, len_final = 0;
-	uint8_t final_phase = 0xff;
+	int	start = 0, len = 0;
+	int	start_final = 0, len_final = 0;
+	uint8_t	final_phase = 0xff;
 
 	while (start < RTSX_RX_PHASE_MAX) {
 		len = rtsx_sd_get_rx_phase_len(phase_map, start);
@@ -1882,7 +1873,7 @@ rtsx_sd_search_final_rx_phase(struct rtsx_softc *sc, uint32_t phase_map)
 static int
 rtsx_sd_get_rx_phase_len(uint32_t phase_map, int start_bit)
 {
-	int i;
+	int	i;
 
 	for (i = 0; i < RTSX_RX_PHASE_MAX; i++) {
 		if ((phase_map & (1 << (start_bit + i) % RTSX_RX_PHASE_MAX)) == 0)
@@ -1895,6 +1886,7 @@ rtsx_sd_get_rx_phase_len(uint32_t phase_map, int start_bit)
 static int
 rtsx_led_enable(struct rtsx_softc *sc)
 {
+
 	switch (sc->rtsx_device_id) {
 	case RTSX_RTS5209:
 		RTSX_CLR(sc, RTSX_CARD_GPIO, RTSX_CARD_GPIO_LED_OFF);
@@ -1940,7 +1932,7 @@ rtsx_led_disable(struct rtsx_softc *sc)
 static uint8_t
 rtsx_response_type(uint16_t mmc_rsp)
 {
-	int i;
+	int	i;
 	struct rsp_type {
 		uint16_t mmc_rsp;
 		uint8_t  rtsx_rsp;
@@ -2024,7 +2016,7 @@ rtsx_set_cmd_data_len(struct rtsx_softc *sc, uint16_t block_cnt, uint16_t byte_c
 static int
 rtsx_send_cmd(struct rtsx_softc *sc, struct mmc_command *cmd)
 {
-	int error;
+	int	error;
 
 	if (bootverbose)
 		device_printf(sc->rtsx_dev, "rtsx_send_cmd()\n");
@@ -2106,9 +2098,9 @@ rtsx_req_done(struct rtsx_softc *sc)
 
 static int
 rtsx_send_req_get_resp(struct rtsx_softc *sc, struct mmc_command *cmd) {
-	uint8_t rsp_type;
+	uint8_t	 rsp_type;
 	uint16_t reg;
-	int error = 0;
+	int	 error = 0;
 
 	/* Convert response type. */
 	rsp_type = rtsx_response_type(cmd->flags & MMC_RSP_MASK);
@@ -2198,9 +2190,9 @@ rtsx_send_req_get_resp(struct rtsx_softc *sc, struct mmc_command *cmd) {
 static int
 rtsx_xfer_short(struct rtsx_softc *sc, struct mmc_command *cmd)
 {
-	uint8_t rsp_type;
-	int read;
-	int error = 0;
+	uint8_t	rsp_type;
+	int	read;
+	int	error = 0;
 
 	if (cmd->data == NULL || cmd->data->len == 0) {
 		cmd->error = MMC_ERR_INVALID;
@@ -2310,10 +2302,10 @@ rtsx_read_ppbuf(struct rtsx_softc *sc, struct mmc_command *cmd)
 {
 
 	uint16_t reg = RTSX_PPBUF_BASE2;
-	uint8_t *ptr = cmd->data->data;
-	int remain = cmd->data->len;
-	int i, j;
-	int error;
+	uint8_t  *ptr = cmd->data->data;
+	int	 remain = cmd->data->len;
+	int	 i, j;
+	int	 error;
 
 	for (j = 0; j < cmd->data->len / RTSX_HOSTCMD_MAX; j++) {
 		sc->rtsx_cmd_index = 0;
@@ -2358,10 +2350,10 @@ static int
 rtsx_write_ppbuf(struct rtsx_softc *sc, struct mmc_command *cmd)
 {
 	uint16_t reg = RTSX_PPBUF_BASE2;
-	uint8_t *ptr = cmd->data->data;
-	int remain = cmd->data->len;
-	int i, j;
-	int error;
+	uint8_t	 *ptr = cmd->data->data;
+	int	 remain = cmd->data->len;
+	int	 i, j;
+	int	 error;
 
 	for (j = 0; j < cmd->data->len / RTSX_HOSTCMD_MAX; j++) {
 		sc->rtsx_cmd_index = 0;
@@ -2395,11 +2387,11 @@ rtsx_write_ppbuf(struct rtsx_softc *sc, struct mmc_command *cmd)
 static int
 rtsx_xfer(struct rtsx_softc *sc, struct mmc_command *cmd)
 {
-	uint8_t cfg2;
-	int read = ISSET(cmd->data->flags, MMC_DATA_READ);
-	int dma_dir;
-	int tmode;
-	int error = 0;
+	uint8_t	cfg2;
+	int	read = ISSET(cmd->data->flags, MMC_DATA_READ);
+	int	dma_dir;
+	int	tmode;
+	int	error = 0;
 
 	if (cmd->data->xfer_len == 0)
 		cmd->data->xfer_len = (cmd->data->len > RTSX_MAX_DATA_BLKLEN) ?
@@ -2646,8 +2638,8 @@ static int
 rtsx_mmcbr_update_ios(device_t bus, device_t child)
 {
 	struct rtsx_softc *sc;
-	struct mmc_ios *ios;
-	int error;
+	struct mmc_ios	  *ios;
+	int	error;
 
 	sc = device_get_softc(bus);
 	ios = &sc->rtsx_host.ios;
@@ -2728,8 +2720,8 @@ static int
 rtsx_mmcbr_switch_vccq(device_t bus, device_t child __unused)
 {
 	struct rtsx_softc *sc;
-	int vccq = 0;
-	int error;
+	int	vccq = 0;
+	int	error;
 
 	sc = device_get_softc(bus);
 
@@ -2811,8 +2803,8 @@ rtsx_mmcbr_tune(device_t bus, device_t child __unused, bool hs400)
 	struct rtsx_softc *sc;
 	uint32_t raw_phase_map[RTSX_RX_TUNING_CNT] = {0};
 	uint32_t phase_map;
-	uint8_t final_phase;
-	int i;
+	uint8_t	 final_phase;
+	int	 i;
 
 	sc = device_get_softc(bus);
 
@@ -2898,9 +2890,9 @@ rtsx_mmcbr_retune(device_t bus, device_t child __unused, bool reset __unused)
 static int
 rtsx_mmcbr_request(device_t bus, device_t child __unused, struct mmc_request *req)
 {
-	struct rtsx_softc *sc;
+	struct rtsx_softc  *sc;
 	struct mmc_command *cmd;
-	int error = 0;
+	int	error = 0;
 
 	sc = device_get_softc(bus);
 
@@ -3035,7 +3027,7 @@ rtsx_probe(device_t dev)
 	uint16_t vendor_id;
 	uint16_t device_id;
 	struct rtsx_softc *sc;
-	int i, result;
+	int	 i, result;
 
 	vendor_id = pci_get_vendor(dev);
 	device_id = pci_get_device(dev);
@@ -3180,7 +3172,7 @@ static int
 rtsx_detach(device_t dev)
 {
 	struct rtsx_softc *sc = device_get_softc(dev);
-	int error;
+	int	error;
 
 	if (bootverbose)
 		device_printf(dev, "Detach - Vendor ID: 0x%x - Device ID: 0x%x\n",
@@ -3236,8 +3228,7 @@ rtsx_suspend(device_t dev)
 {
 	struct rtsx_softc *sc = device_get_softc(dev);
 
-//	if (bootverbose)
-		device_printf(dev, "Suspend\n");
+	device_printf(dev, "Suspend\n");
 
 	if (sc->rtsx_req != NULL) {
 		device_printf(dev, "Request in progress: CMD%u, rtsr_intr_status: 0x%08x\n",
@@ -3255,8 +3246,8 @@ rtsx_suspend(device_t dev)
 static int
 rtsx_resume(device_t dev)
 {
-//	if (bootverbose)
-		device_printf(dev, "Resume\n");
+
+	device_printf(dev, "Resume\n");
 
 	bus_generic_resume(dev);
 
