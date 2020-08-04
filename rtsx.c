@@ -1318,7 +1318,7 @@ rtsx_set_sd_timing(struct rtsx_softc *sc, enum mmc_bus_timing timing)
 {
 
 	/*!!! Change to bus_timing_uhs_sdr50 */
-	/* see rtsx_mmcbr_tune(). */
+	/* See impact on rtsx_mmcbr_tune(). */
 	if (timing == bus_timing_hs) {
 		timing = bus_timing_uhs_sdr50;
 		sc->rtsx_ios_timing = timing;
@@ -1327,15 +1327,9 @@ rtsx_set_sd_timing(struct rtsx_softc *sc, enum mmc_bus_timing timing)
 	if (bootverbose || rtsx_debug)
 		device_printf(sc->rtsx_dev, "rtsx_set_sd_timing(%u)\n", timing);
 
-	/*!!! Change to bus_timing_uhs_sdr50 */
-	/* see rtsx_mmcbr_tune(). */
-	if (timing == bus_timing_hs) {
-		timing = bus_timing_uhs_sdr50;
-		sc->rtsx_ios_timing = timing;
-	}
-
 	switch (timing) {
 	case bus_timing_uhs_sdr50:
+	case bus_timing_uhs_sdr104:
 		RTSX_BITOP(sc, RTSX_SD_CFG1, 0x0c | RTSX_SD_ASYNC_FIFO_NOT_RST,
 			   RTSX_SD30_MODE | RTSX_SD_ASYNC_FIFO_NOT_RST);
 		RTSX_BITOP(sc, RTSX_CLK_CTL, RTSX_CLK_LOW_FREQ, RTSX_CLK_LOW_FREQ);
@@ -1775,9 +1769,9 @@ rtsx_sd_change_rx_phase(struct rtsx_softc *sc, uint8_t sample_point){
 
 static void
 rtsx_sd_tuning_rx_phase(struct rtsx_softc *sc, uint32_t *phase_map) {
+	uint32_t raw_phase_map = 0;
 	int	 i;
 	int	 error;
-	uint32_t raw_phase_map = 0;
 
 	for (i = 0; i < RTSX_RX_PHASE_MAX; i++) {
 		error = rtsx_sd_tuning_rx_cmd(sc, (uint8_t)i);
@@ -3024,10 +3018,11 @@ rtsx_mmcbr_release_host(device_t bus, device_t child __unused)
 static int
 rtsx_probe(device_t dev)
 {
+	struct rtsx_softc *sc;
 	uint16_t vendor_id;
 	uint16_t device_id;
-	struct rtsx_softc *sc;
-	int	 i, result;
+	int	 i;
+	int	 result;
 
 	vendor_id = pci_get_vendor(dev);
 	device_id = pci_get_device(dev);
