@@ -666,7 +666,9 @@ rtsx_init(struct rtsx_softc *sc)
 		sc->rtsx_host.caps |= MMC_CAP_8_BIT_DATA;
 	pci_find_cap(sc->rtsx_dev, PCIY_EXPRESS, &(sc->rtsx_pcie_cap));
 
-	/* check IC version. */
+	/*
+	 * Check IC version.
+	 */
 	switch (sc->rtsx_device_id) {
 	case RTSX_RTS5229:
 		/* Read IC version from dummy register. */
@@ -693,7 +695,15 @@ rtsx_init(struct rtsx_softc *sc)
 		break;
 	}
 
-	/* Fetch vendor settings. */
+	/*
+	 * Fetch vendor settings.
+	 */
+	/*
+	 * Normally OEMs will set vendor setting to the config space
+	 * of Realtek card reader in BIOS stage. This statement reads
+	 * the setting and configure the internal registers according
+	 * to it, to improve card reader's compatibility condition.
+	 */
 	sc->rtsx_card_drive_sel = RTSX_CARD_DRIVE_DEFAULT;
 	switch (sc->rtsx_device_id) {
 		uint32_t reg;
@@ -814,7 +824,9 @@ rtsx_init(struct rtsx_softc *sc)
 	/* Wait SSC power stable. */
 	DELAY(200);
 
-	/* Optimize phy. */
+	/*
+	 * Optimize phy.
+	 */
 	switch (sc->rtsx_device_id) {
 	case RTSX_RTS5209:
 		/* Some magic numbers from Linux driver. */
@@ -977,7 +989,9 @@ rtsx_init(struct rtsx_softc *sc)
 	/*!!! only in OpenBSD. */
 //	RTSX_SET(sc, RTSX_PETXCFG, RTSX_PETXCFG_CLKREQ_PIN);
 
-	/* Specific extra init. */
+	/*
+	 * Specific extra init.
+	 */
 	switch (sc->rtsx_device_id) {
 		uint16_t cap;
 	case RTSX_RTS5209:
@@ -1023,7 +1037,8 @@ rtsx_init(struct rtsx_softc *sc)
 		/* Configure GPIO as output. */
 		RTSX_BITOP(sc, RTSX_GPIO_CTL, RTSX_GPIO_LED_ON, RTSX_GPIO_LED_ON);
 		/* Reset ASPM state to default value. */
-		RTSX_BITOP(sc, RTSX_ASPM_FORCE_CTL, RTSX_ASPM_FORCE_MASK, RTSX_FORCE_ASPM_NO_ASPM);
+		/*  With this reset: dd if=/dev/random of=/dev/mmcsd0 encounter a timeout. */
+//!!!		RTSX_BITOP(sc, RTSX_ASPM_FORCE_CTL, RTSX_ASPM_FORCE_MASK, RTSX_FORCE_ASPM_NO_ASPM);
 		/* Force CLKREQ# PIN to drive 0 to request clock. */
 		RTSX_BITOP(sc, RTSX_PETXCFG, 0x08, 0x08);
 		/* Switch LDO3318 source from DV33 to card_3v3. */
@@ -1319,10 +1334,10 @@ rtsx_set_sd_timing(struct rtsx_softc *sc, enum mmc_bus_timing timing)
 
 	/*!!! Change to bus_timing_uhs_sdr50 */
 	/* See impact on rtsx_mmcbr_tune(). */
-	if (timing == bus_timing_hs) {
-		timing = bus_timing_uhs_sdr50;
-		sc->rtsx_ios_timing = timing;
-	}
+//	if (timing == bus_timing_hs) {
+//		timing = bus_timing_uhs_sdr50;
+//		sc->rtsx_ios_timing = timing;
+//	}
 
 	if (bootverbose || rtsx_debug)
 		device_printf(sc->rtsx_dev, "rtsx_set_sd_timing(%u)\n", timing);
