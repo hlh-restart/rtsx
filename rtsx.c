@@ -137,26 +137,26 @@ static const struct rtsx_device {
 	const char	*desc;
 } rtsx_devices[] = {
 #ifndef RTSX_INVERSION
-	{ 0x10ec,	RTSX_RTS5209,	"1.0e Realtek RTS5209 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTS5227,	"1.0e Realtek RTS5227 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTS5229,	"1.0e Realtek RTS5229 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTS522A,	"1.0e Realtek RTS522A PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTS525A,	"1.0e Realtek RTS525A PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTS5249,	"1.0e Realtek RTS5249 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTL8402,	"1.0e Realtek RTL8402 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTL8411,	"1.0e Realtek RTL8411 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTL8411B,	"1.0e Realtek RTL8411B PCI MMC/SD Card Reader"},
+	{ 0x10ec,	RTSX_RTS5209,	"1.0f Realtek RTS5209 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	RTSX_RTS5227,	"1.0f Realtek RTS5227 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	RTSX_RTS5229,	"1.0f Realtek RTS5229 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	RTSX_RTS522A,	"1.0f Realtek RTS522A PCI MMC/SD Card Reader"},
+	{ 0x10ec,	RTSX_RTS525A,	"1.0f Realtek RTS525A PCI MMC/SD Card Reader"},
+	{ 0x10ec,	RTSX_RTS5249,	"1.0f Realtek RTS5249 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	RTSX_RTL8402,	"1.0f Realtek RTL8402 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	RTSX_RTL8411,	"1.0f Realtek RTL8411 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	RTSX_RTL8411B,	"1.0f Realtek RTL8411B PCI MMC/SD Card Reader"},
 	{ 0, 		0,		NULL}
 #else
-	{ 0x10ec,	RTSX_RTS5209,	"1.0E Realtek RTS5209 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTS5227,	"1.0E Realtek RTS5227 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTS5229,	"1.0E Realtek RTS5229 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTS522A,	"1.0E Realtek RTS522A PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTS525A,	"1.0E Realtek RTS525A PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTS5249,	"1.0E Realtek RTS5249 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTL8402,	"1.0E Realtek RTL8402 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTL8411,	"1.0E Realtek RTL8411 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTL8411B,	"1.0E Realtek RTL8411B PCI MMC/SD Card Reader"},
+	{ 0x10ec,	RTSX_RTS5209,	"1.0F Realtek RTS5209 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	RTSX_RTS5227,	"1.0F Realtek RTS5227 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	RTSX_RTS5229,	"1.0F Realtek RTS5229 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	RTSX_RTS522A,	"1.0F Realtek RTS522A PCI MMC/SD Card Reader"},
+	{ 0x10ec,	RTSX_RTS525A,	"1.0F Realtek RTS525A PCI MMC/SD Card Reader"},
+	{ 0x10ec,	RTSX_RTS5249,	"1.0F Realtek RTS5249 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	RTSX_RTL8402,	"1.0F Realtek RTL8402 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	RTSX_RTL8411,	"1.0F Realtek RTL8411 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	RTSX_RTL8411B,	"1.0F Realtek RTL8411B PCI MMC/SD Card Reader"},
 	{ 0, 		0,		NULL}
 #endif
 };
@@ -516,7 +516,7 @@ rtsx_intr(void *arg)
 		RTSX_UNLOCK(sc);
 		return;
 	}
-	if (status & (RTSX_TRANS_OK_INT | RTSX_TRANS_FAIL_INT | RTSX_DELINK_INT)) {
+	if (status & (RTSX_TRANS_OK_INT | RTSX_TRANS_FAIL_INT)) {
 		sc->rtsx_intr_status |= status;
 		wakeup(&sc->rtsx_intr_status);
 	}
@@ -529,7 +529,7 @@ rtsx_wait_intr(struct rtsx_softc *sc, int mask, int timeout)
 	int	status;
 	int	error = 0;
 
-	mask |= RTSX_TRANS_FAIL_INT | RTSX_DELINK_INT;
+	mask |= RTSX_TRANS_FAIL_INT;
 
 	status = sc->rtsx_intr_status & mask;
 	while (status == 0) {
@@ -553,7 +553,7 @@ rtsx_wait_intr(struct rtsx_softc *sc, int mask, int timeout)
 		error = MMC_ERR_INVALID;
 
 	/* Does transfer fail? */
-	if (error == 0 && (status & (RTSX_TRANS_FAIL_INT | RTSX_DELINK_INT))) {
+	if (error == 0 && (status & RTSX_TRANS_FAIL_INT)) {
 		error = MMC_ERR_FAILED;
 		if (!sc->rtsx_tuning_mode)
 			device_printf(sc->rtsx_dev, "Transfer fail - status: 0x%08x\n", status);
@@ -834,7 +834,7 @@ rtsx_init(struct rtsx_softc *sc)
 			return (error);
 		break;
 	case RTSX_RTS5227:
-		/*!!! added */
+		/*!!! Added from Linux. */
 		RTSX_CLR(sc, RTSX_PM_CTRL3, RTSX_D3_DELINK_MODE_EN);
 
 		/* Optimize RX sensitivity. */
@@ -943,7 +943,6 @@ rtsx_init(struct rtsx_softc *sc)
 		 RTSX_FORCE_RST_CORE_EN | RTSX_NON_STICKY_RST_N_DBG);		/* Linux */
 
 	/* Card driving select. */
-	/*!!! added */
 	RTSX_WRITE(sc, RTSX_CARD_DRIVE_SEL, sc->rtsx_card_drive_sel);
 
 	/* Enable SSC clock. */
@@ -951,13 +950,9 @@ rtsx_init(struct rtsx_softc *sc)
 	RTSX_WRITE(sc, RTSX_SSC_CTL2, 0x12);
 
 	/* Disable cd_pwr_save. */
-	/*!!!*/
-//	RTSX_SET(sc, RTSX_CHANGE_LINK_STATE, RTSX_MAC_PHY_RST_N_DBG);
 	RTSX_BITOP(sc, RTSX_CHANGE_LINK_STATE, 0x16, RTSX_MAC_PHY_RST_N_DBG);
 
 	/* Clear Link Ready Interrupt. */
-	/*!!!*/
-//	RTSX_SET(sc, RTSX_IRQSTAT0, RTSX_LINK_READY_INT);
 	RTSX_BITOP(sc, RTSX_IRQSTAT0, RTSX_LINK_READY_INT, RTSX_LINK_READY_INT);
 
 	/* Enlarge the estimation window of PERST# glitch
@@ -974,19 +969,19 @@ rtsx_init(struct rtsx_softc *sc)
 		RTSX_BITOP(sc, RTSX_PM_CLK_FORCE_CTL, 1, 1);
 
 	/* OC power down. */
-	/*!!! added from Linux */
+	/*!!! Added from Linux. */
 	RTSX_BITOP(sc, RTSX_FPDCTL, RTSX_SD_OC_POWER_DOWN, RTSX_SD_OC_POWER_DOWN);
 
 	/* Enable clk_request_n to enable clock power management */
-	/*!!! added */
+	/*!!! Added from Linux. */
 	pci_write_config(sc->rtsx_dev, sc->rtsx_pcie_cap + PCIER_LINK_CTL + 1, 1, 1);
 
 	/* Enter L1 when host tx idle */
-	/*!!! added */
+	/*!!! Added from Linux. */
 	pci_write_config(sc->rtsx_dev, 0x70F, 0x5B, 1);
 
 	/* Request clock by driving CLKREQ pin to zero. */
-	/*!!! only in OpenBSD. */
+	/*!!! Only in OpenBSD. */
 //	RTSX_SET(sc, RTSX_PETXCFG, RTSX_PETXCFG_CLKREQ_PIN);
 
 	/*
@@ -1332,12 +1327,14 @@ static int
 rtsx_set_sd_timing(struct rtsx_softc *sc, enum mmc_bus_timing timing)
 {
 
-	/*!!! Change to bus_timing_uhs_sdr50 */
+	/* Force timing to bus_timing_uhs_sdr50. */
 	/* See impact on rtsx_mmcbr_tune(). */
-//	if (timing == bus_timing_hs) {
-//		timing = bus_timing_uhs_sdr50;
-//		sc->rtsx_ios_timing = timing;
-//	}
+/*!!! Not supported by all devices; eg RTS5229.
+	if (timing == bus_timing_hs) {
+		timing = bus_timing_uhs_sdr50;
+		sc->rtsx_ios_timing = timing;
+	}
+*/
 
 	if (bootverbose || rtsx_debug)
 		device_printf(sc->rtsx_dev, "rtsx_set_sd_timing(%u)\n", timing);
@@ -1513,7 +1510,7 @@ rtsx_bus_power_off(struct rtsx_softc *sc)
 	if (bootverbose || rtsx_debug)
 		device_printf(sc->rtsx_dev, "rtsx_bus_power_off()\n");
 
-	/*!!! Not in Linux */
+	/*!!! Not in Linux. */
 //	if ((error = rtsx_stop_sd_clock(sc)))
 //		return (error);
 
@@ -2750,7 +2747,6 @@ rtsx_mmcbr_switch_vccq(device_t bus, device_t child __unused)
 		switch (sc->rtsx_device_id) {
 			uint16_t val;
 		case RTSX_RTS5227:
-			/*!!!*/
 			if ((error = rtsx_write_phy(sc, 0x08, 0x4FE4)))
 				return (error);
 			if ((error = rtsx_rts5227_fill_driving(sc)))
@@ -2942,7 +2938,6 @@ rtsx_mmcbr_request(device_t bus, device_t child __unused, struct mmc_request *re
 	RTSX_BITOP(sc, RTSX_CARD_SHARE_MODE, RTSX_CARD_SHARE_MASK, RTSX_CARD_SHARE_48_SD);
 
 	if (cmd->data == NULL) {
-		/*!!!*/
 		DELAY(200);
 		error = rtsx_send_req_get_resp(sc, cmd);
 	} else if (cmd->data->len <= 512) {
