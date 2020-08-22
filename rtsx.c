@@ -355,6 +355,7 @@ static int	rtsx_mmcbr_release_host(device_t bus, device_t child __unused);
  * ACMD42	Set/Clear card detect
  * ACMD6	Set bus width
  * CMD19	Send tuning block
+ * CMD12	Stop transmission
  *
  * CMD17	Read single block (<=512)
  * CMD18	Read multiple blocks (>512)
@@ -848,7 +849,6 @@ rtsx_init(struct rtsx_softc *sc)
 			return (error);
 		break;
 	case RTSX_RTS5227:
-		/*!!! Added from Linux. */
 		RTSX_CLR(sc, RTSX_PM_CTRL3, RTSX_D3_DELINK_MODE_EN);
 
 		/* Optimize RX sensitivity. */
@@ -950,11 +950,8 @@ rtsx_init(struct rtsx_softc *sc)
 	RTSX_CLR(sc, RTSX_CARD_CLK_EN, RTSX_CARD_CLK_EN_ALL);
 
 	/* Reset delink mode. */
-	/*!!! Discrepancy between OpenBSD and Linux. */
-//	RTSX_CLR(sc, RTSX_CHANGE_LINK_STATE,
-//		 RTSX_FORCE_RST_CORE_EN | RTSX_NON_STICKY_RST_N_DBG | 0x04);	/* OpenBSD */
 	RTSX_CLR(sc, RTSX_CHANGE_LINK_STATE,
-		 RTSX_FORCE_RST_CORE_EN | RTSX_NON_STICKY_RST_N_DBG);		/* Linux */
+		 RTSX_FORCE_RST_CORE_EN | RTSX_NON_STICKY_RST_N_DBG);
 
 	/* Card driving select. */
 	RTSX_WRITE(sc, RTSX_CARD_DRIVE_SEL, sc->rtsx_card_drive_sel);
@@ -983,20 +980,13 @@ rtsx_init(struct rtsx_softc *sc)
 		RTSX_BITOP(sc, RTSX_PM_CLK_FORCE_CTL, 1, 1);
 
 	/* OC power down. */
-	/*!!! Added from Linux. */
 	RTSX_BITOP(sc, RTSX_FPDCTL, RTSX_SD_OC_POWER_DOWN, RTSX_SD_OC_POWER_DOWN);
 
 	/* Enable clk_request_n to enable clock power management */
-	/*!!! Added from Linux. */
 	pci_write_config(sc->rtsx_dev, sc->rtsx_pcie_cap + PCIER_LINK_CTL + 1, 1, 1);
 
 	/* Enter L1 when host tx idle */
-	/*!!! Added from Linux. */
 	pci_write_config(sc->rtsx_dev, 0x70F, 0x5B, 1);
-
-	/* Request clock by driving CLKREQ pin to zero. */
-	/*!!! Only in OpenBSD. */
-//	RTSX_SET(sc, RTSX_PETXCFG, RTSX_PETXCFG_CLKREQ_PIN);
 
 	/*
 	 * Specific extra init.
@@ -1350,10 +1340,6 @@ rtsx_bus_power_off(struct rtsx_softc *sc)
 
 	if (bootverbose || rtsx_debug)
 		device_printf(sc->rtsx_dev, "rtsx_bus_power_off()\n");
-
-	/*!!! Not in Linux. */
-//	if ((error = rtsx_stop_sd_clock(sc)))
-//		return (error);
 
 	/* Disable SD clock. */
 	RTSX_CLR(sc, RTSX_CARD_CLK_EN, RTSX_SD_CLK_EN);
@@ -3181,7 +3167,6 @@ rtsx_mmcbr_request(device_t bus, device_t child __unused, struct mmc_request *re
 	}
 
 	/* Select SD card. */
-	/*!!! Added from Linux. */
 	RTSX_BITOP(sc, RTSX_CARD_SELECT, 0x07, RTSX_SD_MOD_SEL);
 	RTSX_BITOP(sc, RTSX_CARD_SHARE_MODE, RTSX_CARD_SHARE_MASK, RTSX_CARD_SHARE_48_SD);
 
