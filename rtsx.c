@@ -628,10 +628,11 @@ rtsx_card_task(void *arg, int pending __unused)
 		if (sc->rtsx_mmc_dev != NULL) {
 			if (bootverbose)
 				device_printf(sc->rtsx_dev, "Card removed\n");
-
+/*---
 			if (rtsx_debug)
 				device_printf(sc->rtsx_dev, "Read count: %ld, write count: %ld\n",
 					      rtsx_read_count, rtsx_write_count);
+---*/
 			RTSX_UNLOCK(sc);
 			if (device_delete_child(sc->rtsx_dev, sc->rtsx_mmc_dev))
 				device_printf(sc->rtsx_dev, "Detaching MMC bus failed\n");
