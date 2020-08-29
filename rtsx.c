@@ -56,6 +56,7 @@ __FBSDID("$FreeBSD$");
 #include <dev/mmc/bridge.h>
 #include <dev/mmc/mmcreg.h>
 #include <dev/mmc/mmcbrvar.h>
+#include <machine/_inttypes.h>
 
 #include "rtsxreg.h"
 
@@ -102,23 +103,24 @@ struct rtsx_softc {
 	void		*rtsx_data_dmamem;	/* DMA mem for data transfer */
 	bus_addr_t	rtsx_data_buffer;	/* device visible address of the DMA segment */
 
-	u_char		rtsx_bus_busy;		/* bus busy status */
+	struct mmc_request *rtsx_req;		/* MMC request */
 	struct mmc_host rtsx_host;		/* host parameters */
+	int8_t		rtsx_bus_busy;		/* bus busy status */
 	int8_t		rtsx_ios_bus_width;	/* current host.ios.bus_width */
 	int32_t		rtsx_ios_clock;		/* current host.ios.clock */
 	int8_t		rtsx_ios_power_mode;	/* current host.ios.power mode */
 	int8_t		rtsx_ios_timing;	/* current host.ios.timing */	
 	uint8_t		rtsx_read_only;		/* card read only status */
+	uint8_t		rtsx_inversion;		/* inversion of card detection and read only status */
 	int		rtsx_pcie_cap;		/* PCIe capability offset */
+	int		rtsx_force_timing;	/* force bus_timing_uhs_sdr50 */
 	bool		rtsx_discovery_mode;	/* are we in discovery mode? */
 	bool		rtsx_tuning_mode;	/* are we tuning */
-	int		rtsx_force_timing;	/* force bus_timing_uhs_sdr50 */
 	bool		rtsx_double_clk;	/* double clock freqency */
 	bool		rtsx_vpclk;		/* voltage at Pulse-width Modulation(PWM) clock? */
 	uint8_t		rtsx_ssc_depth;		/* Spread spectrum clocking depth */
 	uint8_t		rtsx_card_drive_sel;	/* value for RTSX_CARD_DRIVE_SEL */
 	uint8_t		rtsx_sd30_drive_sel_3v3;/* value for RTSX_SD30_DRIVE_SEL */
-	struct mmc_request *rtsx_req;		/* MMC request */
 };
 
 /* rtsx_flags values */
@@ -147,29 +149,16 @@ static const struct rtsx_device {
 	uint16_t	device_id;
 	const char	*desc;
 } rtsx_devices[] = {
-#ifndef RTSX_INVERSION
-	{ 0x10ec,	RTSX_RTS5209,	"1.0g Realtek RTS5209 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTS5227,	"1.0g Realtek RTS5227 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTS5229,	"1.0g Realtek RTS5229 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTS522A,	"1.0g Realtek RTS522A PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTS525A,	"1.0g Realtek RTS525A PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTS5249,	"1.0g Realtek RTS5249 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTL8402,	"1.0g Realtek RTL8402 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTL8411,	"1.0g Realtek RTL8411 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTL8411B,	"1.0g Realtek RTL8411B PCI MMC/SD Card Reader"},
+	{ 0x10ec,	RTSX_RTS5209,	"1.0h Realtek RTS5209 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	RTSX_RTS5227,	"1.0h Realtek RTS5227 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	RTSX_RTS5229,	"1.0h Realtek RTS5229 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	RTSX_RTS522A,	"1.0h Realtek RTS522A PCI MMC/SD Card Reader"},
+	{ 0x10ec,	RTSX_RTS525A,	"1.0h Realtek RTS525A PCI MMC/SD Card Reader"},
+	{ 0x10ec,	RTSX_RTS5249,	"1.0h Realtek RTS5249 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	RTSX_RTL8402,	"1.0h Realtek RTL8402 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	RTSX_RTL8411,	"1.0h Realtek RTL8411 PCI MMC/SD Card Reader"},
+	{ 0x10ec,	RTSX_RTL8411B,	"1.0h Realtek RTL8411B PCI MMC/SD Card Reader"},
 	{ 0, 		0,		NULL}
-#else
-	{ 0x10ec,	RTSX_RTS5209,	"1.0G Realtek RTS5209 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTS5227,	"1.0G Realtek RTS5227 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTS5229,	"1.0G Realtek RTS5229 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTS522A,	"1.0G Realtek RTS522A PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTS525A,	"1.0G Realtek RTS525A PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTS5249,	"1.0G Realtek RTS5249 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTL8402,	"1.0G Realtek RTL8402 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTL8411,	"1.0G Realtek RTL8411 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTL8411B,	"1.0G Realtek RTL8411B PCI MMC/SD Card Reader"},
-	{ 0, 		0,		NULL}
-#endif
 };
 
 static int	rtsx_dma_alloc(struct rtsx_softc *sc);
@@ -606,6 +595,13 @@ rtsx_card_task(void *arg, int pending __unused)
 
 	if (rtsx_is_card_present(sc)) {
 		sc->rtsx_flags |= RTSX_F_CARD_PRESENT;
+
+		/*!!! Added for reboot after Windows. */
+		rtsx_bus_power_off(sc);
+		rtsx_set_sd_timing(sc, bus_timing_normal);
+		rtsx_set_sd_clock(sc, 0);
+		/*!!! Added for reboot after Windows. */
+
 		/* Card is present, attach if necessary. */
 		if (sc->rtsx_mmc_dev == NULL) {
 			if (bootverbose)
@@ -628,11 +624,10 @@ rtsx_card_task(void *arg, int pending __unused)
 		if (sc->rtsx_mmc_dev != NULL) {
 			if (bootverbose)
 				device_printf(sc->rtsx_dev, "Card removed\n");
-/*---
+
 			if (rtsx_debug)
-				device_printf(sc->rtsx_dev, "Read count: %ld, write count: %ld\n",
+				device_printf(sc->rtsx_dev, "Read count: %" PRIu64 ", write count: %" PRIu64 "\n",
 					      rtsx_read_count, rtsx_write_count);
----*/
 			RTSX_UNLOCK(sc);
 			if (device_delete_child(sc->rtsx_dev, sc->rtsx_mmc_dev))
 				device_printf(sc->rtsx_dev, "Detaching MMC bus failed\n");
@@ -648,11 +643,10 @@ rtsx_is_card_present(struct rtsx_softc *sc)
 	uint32_t status;
 
 	status = READ4(sc, RTSX_BIPR);
-#ifndef RTSX_INVERSION
-	return (status & RTSX_SD_EXIST);
-#else
-	return !(status & RTSX_SD_EXIST);
-#endif
+	if (sc->rtsx_inversion == 0)
+		return (status & RTSX_SD_EXIST);
+	else
+		return !(status & RTSX_SD_EXIST);
 }
 
 static int
@@ -663,8 +657,6 @@ rtsx_init(struct rtsx_softc *sc)
 	uint8_t	val;
 	int	error;
 
-	sc->rtsx_timeout = 10;
-	sc->rtsx_force_timing = 0;
 	sc->rtsx_host.host_ocr = RTSX_SUPPORTED_VOLTAGE;
 	sc->rtsx_host.f_min = RTSX_SDCLK_250KHZ;
 	sc->rtsx_host.f_max = RTSX_SDCLK_208MHZ;
@@ -3197,11 +3189,10 @@ rtsx_mmcbr_get_ro(device_t bus, device_t child __unused)
 
 	sc = device_get_softc(bus);
 
-#ifndef RTSX_INVERSION
-	return (sc->rtsx_read_only);
-#else
-	return !(sc->rtsx_read_only);
-#endif	
+	if (sc->rtsx_inversion == 0)
+		return (sc->rtsx_read_only);
+	else
+		return !(sc->rtsx_read_only);
 }
 
 static int
@@ -3294,12 +3285,24 @@ rtsx_attach(device_t dev)
 			      pci_get_vendor(dev), pci_get_device(dev));
 
 	sc->rtsx_dev = dev;
+	sc->rtsx_timeout = 10;
+	sc->rtsx_force_timing = 0;
+#ifdef RTSX_INVERSION
+	sc->rtsx_inversion = 1;
+#else
+	sc->rtsx_inversion = 0;
+#endif
+
 	RTSX_LOCK_INIT(sc);
 
 	ctx = device_get_sysctl_ctx(dev);
 	tree = SYSCTL_CHILDREN(device_get_sysctl_tree(dev));
 	SYSCTL_ADD_INT(ctx, tree, OID_AUTO, "req_timeout", CTLFLAG_RW,
 		       &sc->rtsx_timeout, 0, "Request timeout in seconds");
+	SYSCTL_ADD_U8(ctx, tree, OID_AUTO, "read_only", CTLFLAG_RD,
+		      &sc->rtsx_read_only, 0, "Card is write protected");
+	SYSCTL_ADD_U8(ctx, tree, OID_AUTO, "inversion", CTLFLAG_RW,
+		      &sc->rtsx_inversion, 0, "Inversion of card detection and read only status");
 	SYSCTL_ADD_INT(ctx, tree, OID_AUTO, "force_timing", CTLFLAG_RW,
 		       &sc->rtsx_force_timing, 0, "Force bus_timing_uhs_sdr50");
 	SYSCTL_ADD_INT(ctx, tree, OID_AUTO, "debug", CTLFLAG_RW,
