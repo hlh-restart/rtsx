@@ -595,13 +595,6 @@ rtsx_card_task(void *arg, int pending __unused)
 
 	if (rtsx_is_card_present(sc)) {
 		sc->rtsx_flags |= RTSX_F_CARD_PRESENT;
-
-		/*!!! Added for reboot after Windows. */
-		rtsx_bus_power_off(sc);
-		rtsx_set_sd_timing(sc, bus_timing_normal);
-		rtsx_set_sd_clock(sc, 0);
-		/*!!! Added for reboot after Windows. */
-
 		/* Card is present, attach if necessary. */
 		if (sc->rtsx_mmc_dev == NULL) {
 			if (bootverbose)
@@ -1155,6 +1148,12 @@ rtsx_init(struct rtsx_softc *sc)
 		RTSX_BITOP(sc, RTSX_FUNC_FORCE_CTL, 0x06, 0x00);
 		break;
 	}
+
+	/*!!! Added for reboot after Windows. */
+	rtsx_bus_power_off(sc);
+	rtsx_set_sd_timing(sc, bus_timing_normal);
+	rtsx_set_sd_clock(sc, 0);
+	/*!!! Added for reboot after Windows. */
 
 	return (0);
 }
