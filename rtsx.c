@@ -60,10 +60,6 @@ __FBSDID("$FreeBSD$");
 
 #include "rtsxreg.h"
 
-static int	rtsx_debug = 0;
-static uint64_t	rtsx_read_count = 0;
-static uint64_t	rtsx_write_count = 0;
-
 /* The softc holds our per-instance data. */
 struct rtsx_softc {
 	struct mtx	rtsx_mtx;		/* device mutex */
@@ -105,6 +101,7 @@ struct rtsx_softc {
 
 	struct mmc_request *rtsx_req;		/* MMC request */
 	struct mmc_host rtsx_host;		/* host parameters */
+	int		rtsx_pcie_cap;		/* PCIe capability offset */
 	int8_t		rtsx_bus_busy;		/* bus busy status */
 	int8_t		rtsx_ios_bus_width;	/* current host.ios.bus_width */
 	int32_t		rtsx_ios_clock;		/* current host.ios.clock */
@@ -112,8 +109,10 @@ struct rtsx_softc {
 	int8_t		rtsx_ios_timing;	/* current host.ios.timing */	
 	uint8_t		rtsx_read_only;		/* card read only status */
 	uint8_t		rtsx_inversion;		/* inversion of card detection and read only status */
-	int		rtsx_pcie_cap;		/* PCIe capability offset */
-	int		rtsx_force_timing;	/* force bus_timing_uhs_sdr50 */
+	uint8_t		rtsx_force_timing;	/* force bus_timing_uhs_sdr50 */
+	uint8_t		rtsx_debug;		/* print debugging */
+	uint64_t	rtsx_read_count;	/* count of read operations */
+	uint64_t	rtsx_write_count;	/* count of write operations */
 	bool		rtsx_discovery_mode;	/* are we in discovery mode? */
 	bool		rtsx_tuning_mode;	/* are we tuning */
 	bool		rtsx_double_clk;	/* double clock freqency */
@@ -134,6 +133,7 @@ struct rtsx_softc {
 #define	RTSX_F_8411B_QFN48	0x0040
 #define	RTSX_F_REVERSE_SOCKET	0x0080
 
+#define	RTSX_REALTEK		0x10ec
 #define	RTSX_RTS5209		0x5209
 #define	RTSX_RTS5227		0x5227
 #define	RTSX_RTS5229		0x5229
@@ -144,20 +144,22 @@ struct rtsx_softc {
 #define	RTSX_RTL8411		0x5289
 #define	RTSX_RTL8411B		0x5287
 
+#define	RTSX_VERSION		"1.0i"
+
 static const struct rtsx_device {
 	uint16_t	vendor_id;
 	uint16_t	device_id;
 	const char	*desc;
 } rtsx_devices[] = {
-	{ 0x10ec,	RTSX_RTS5209,	"1.0h Realtek RTS5209 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTS5227,	"1.0h Realtek RTS5227 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTS5229,	"1.0h Realtek RTS5229 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTS522A,	"1.0h Realtek RTS522A PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTS525A,	"1.0h Realtek RTS525A PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTS5249,	"1.0h Realtek RTS5249 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTL8402,	"1.0h Realtek RTL8402 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTL8411,	"1.0h Realtek RTL8411 PCI MMC/SD Card Reader"},
-	{ 0x10ec,	RTSX_RTL8411B,	"1.0h Realtek RTL8411B PCI MMC/SD Card Reader"},
+	{ RTSX_REALTEK,	RTSX_RTS5209,	RTSX_VERSION " Realtek RTS5209 PCI MMC/SD Card Reader"},
+	{ RTSX_REALTEK,	RTSX_RTS5227,	RTSX_VERSION " Realtek RTS5227 PCI MMC/SD Card Reader"},
+	{ RTSX_REALTEK,	RTSX_RTS5229,	RTSX_VERSION " Realtek RTS5229 PCI MMC/SD Card Reader"},
+	{ RTSX_REALTEK,	RTSX_RTS522A,	RTSX_VERSION " Realtek RTS522A PCI MMC/SD Card Reader"},
+	{ RTSX_REALTEK,	RTSX_RTS525A,	RTSX_VERSION " Realtek RTS525A PCI MMC/SD Card Reader"},
+	{ RTSX_REALTEK,	RTSX_RTS5249,	RTSX_VERSION " Realtek RTS5249 PCI MMC/SD Card Reader"},
+	{ RTSX_REALTEK,	RTSX_RTL8402,	RTSX_VERSION " Realtek RTL8402 PCI MMC/SD Card Reader"},
+	{ RTSX_REALTEK,	RTSX_RTL8411,	RTSX_VERSION " Realtek RTL8411 PCI MMC/SD Card Reader"},
+	{ RTSX_REALTEK,	RTSX_RTL8411B,	RTSX_VERSION " Realtek RTL8411B PCI MMC/SD Card Reader"},
 	{ 0, 		0,		NULL}
 };
 
@@ -600,7 +602,7 @@ rtsx_card_task(void *arg, int pending __unused)
 			if (bootverbose)
 				device_printf(sc->rtsx_dev, "Card inserted\n");
 
-			rtsx_read_count = rtsx_write_count = 0;
+			sc->rtsx_read_count = sc->rtsx_write_count = 0;
 			sc->rtsx_mmc_dev = device_add_child(sc->rtsx_dev, "mmc", -1);
 			RTSX_UNLOCK(sc);
 			if (sc->rtsx_mmc_dev == NULL) {
@@ -618,9 +620,9 @@ rtsx_card_task(void *arg, int pending __unused)
 			if (bootverbose)
 				device_printf(sc->rtsx_dev, "Card removed\n");
 
-			if (rtsx_debug)
+			if (sc->rtsx_debug)
 				device_printf(sc->rtsx_dev, "Read count: %" PRIu64 ", write count: %" PRIu64 "\n",
-					      rtsx_read_count, rtsx_write_count);
+					      sc->rtsx_read_count, sc->rtsx_write_count);
 			RTSX_UNLOCK(sc);
 			if (device_delete_child(sc->rtsx_dev, sc->rtsx_mmc_dev))
 				device_printf(sc->rtsx_dev, "Detaching MMC bus failed\n");
@@ -645,7 +647,7 @@ rtsx_is_card_present(struct rtsx_softc *sc)
 static int
 rtsx_init(struct rtsx_softc *sc)
 {
-	bool	rtsx_init_debug = true;
+	bool	rtsx_init_debug = false;
 	uint8_t	version;
 	uint8_t	val;
 	int	error;
@@ -653,7 +655,6 @@ rtsx_init(struct rtsx_softc *sc)
 	sc->rtsx_host.host_ocr = RTSX_SUPPORTED_VOLTAGE;
 	sc->rtsx_host.f_min = RTSX_SDCLK_250KHZ;
 	sc->rtsx_host.f_max = RTSX_SDCLK_208MHZ;
-	sc->rtsx_read_only = 0;
 	sc->rtsx_host.caps = MMC_CAP_4_BIT_DATA | MMC_CAP_HSPEED |
 		MMC_CAP_UHS_SDR12 | MMC_CAP_UHS_SDR25;
 
@@ -821,7 +822,6 @@ rtsx_init(struct rtsx_softc *sc)
 	DELAY(200);
 
 	/* Disable ASPM */
-	/*!!! Added from Linux. */
 	val = pci_read_config(sc->rtsx_dev, sc->rtsx_pcie_cap + PCIER_LINK_CTL, 1);
 	pci_write_config(sc->rtsx_dev, sc->rtsx_pcie_cap + PCIER_LINK_CTL, val & 0xfc, 1);
 
@@ -1330,7 +1330,7 @@ rtsx_bus_power_off(struct rtsx_softc *sc)
 {
 //	int	error;
 
-	if (bootverbose || rtsx_debug)
+	if (bootverbose || sc->rtsx_debug)
 		device_printf(sc->rtsx_dev, "rtsx_bus_power_off()\n");
 
 	/* Disable SD clock. */
@@ -1425,7 +1425,7 @@ rtsx_bus_power_off(struct rtsx_softc *sc)
 static int
 rtsx_bus_power_on(struct rtsx_softc *sc)
 {
-	if (bootverbose || rtsx_debug)
+	if (bootverbose || sc->rtsx_debug)
 		device_printf(sc->rtsx_dev, "rtsx_bus_power_on()\n");
 
 	/* Select SD card. */
@@ -1595,7 +1595,7 @@ rtsx_set_bus_width(struct rtsx_softc *sc, enum mmc_bus_width width)
 	}
 	RTSX_BITOP(sc, RTSX_SD_CFG1, RTSX_BUS_WIDTH_MASK, bus_width);
 
-	if (bootverbose || rtsx_debug) {
+	if (bootverbose || sc->rtsx_debug) {
 		char *busw[] = {
 				"1 bit",
 				"4 bits",
@@ -1615,7 +1615,7 @@ rtsx_set_sd_timing(struct rtsx_softc *sc, enum mmc_bus_timing timing)
 		sc->rtsx_ios_timing = timing;
 	}
 
-	if (bootverbose || rtsx_debug)
+	if (bootverbose || sc->rtsx_debug)
 		device_printf(sc->rtsx_dev, "rtsx_set_sd_timing(%u)\n", timing);
 
 	switch (timing) {
@@ -1669,7 +1669,7 @@ rtsx_set_sd_clock(struct rtsx_softc *sc, uint32_t freq)
 	uint8_t	clk_divider, n, div, mcu;
 	int	error = 0;
 
-	if (bootverbose || rtsx_debug)
+	if (bootverbose || sc->rtsx_debug)
 		device_printf(sc->rtsx_dev, "rtsx_set_sd_clock(%u)\n", freq);
 
 	if (freq == RTSX_SDCLK_OFF) {
@@ -1757,7 +1757,7 @@ rtsx_stop_sd_clock(struct rtsx_softc *sc)
 static int
 rtsx_switch_sd_clock(struct rtsx_softc *sc, uint8_t clk, uint8_t n, uint8_t div, uint8_t mcu)
 {
-	if (bootverbose || rtsx_debug) {
+	if (bootverbose || sc->rtsx_debug) {
 		device_printf(sc->rtsx_dev, "rtsx_switch_sd_clock() - discovery-mode is %s, ssc_depth: %d\n",
 			      (sc->rtsx_discovery_mode) ? "true" : "false", sc->rtsx_ssc_depth);
 		device_printf(sc->rtsx_dev, "rtsx_switch_sd_clock() - clk: %d, n: %d, div: %d, mcu: %d\n",
@@ -1786,7 +1786,7 @@ rtsx_switch_sd_clock(struct rtsx_softc *sc, uint8_t clk, uint8_t n, uint8_t div,
 static void
 rtsx_sd_change_tx_phase(struct rtsx_softc *sc, uint8_t sample_point)
 {
-	if (bootverbose || rtsx_debug)
+	if (bootverbose || sc->rtsx_debug)
 		device_printf(sc->rtsx_dev, "rtsx_sd_change_tx_phase() - sample_point: %d\n", sample_point);
 
 	rtsx_write(sc, RTSX_CLK_CTL, RTSX_CHANGE_CLK, RTSX_CHANGE_CLK);
@@ -1800,7 +1800,7 @@ rtsx_sd_change_tx_phase(struct rtsx_softc *sc, uint8_t sample_point)
 static void
 rtsx_sd_change_rx_phase(struct rtsx_softc *sc, uint8_t sample_point)
 {
-	if (bootverbose || rtsx_debug == 2)
+	if (bootverbose || sc->rtsx_debug == 2)
 		device_printf(sc->rtsx_dev, "rtsx_sd_change_rx_phase() - sample_point: %d\n", sample_point);
 
 	rtsx_write(sc, RTSX_CLK_CTL, RTSX_CHANGE_CLK, RTSX_CHANGE_CLK);
@@ -1867,7 +1867,7 @@ rtsx_sd_tuning_rx_cmd(struct rtsx_softc *sc, uint8_t sample_point)
 	error = rtsx_sd_tuning_rx_cmd_wait(sc, &cmd);
 
 	if (error) {
-		if (bootverbose || rtsx_debug == 2)
+		if (bootverbose || sc->rtsx_debug == 2)
 			device_printf(sc->rtsx_dev, "rtsx_sd_tuning_rx_cmd() - error: %d\n", error);
 		rtsx_sd_wait_data_idle(sc);
 		rtsx_clear_error(sc);
@@ -1936,7 +1936,7 @@ rtsx_sd_search_final_rx_phase(struct rtsx_softc *sc, uint32_t phase_map)
 
 	final_phase = (start_final + len_final / 2) % RTSX_RX_PHASE_MAX;
 
-	if (bootverbose || rtsx_debug)
+	if (bootverbose || sc->rtsx_debug)
 		device_printf(sc->rtsx_dev,
 			      "rtsx_sd_search_final_rx_phase() - phase_map: %x, start_final: %d, len_final: %d, final_phase: %d\n",
 			      phase_map, start_final, len_final, final_phase);
@@ -2145,10 +2145,10 @@ rtsx_req_done(struct rtsx_softc *sc)
 	if (req->cmd->error == MMC_ERR_NONE) {
 		if (req->cmd->opcode == MMC_READ_SINGLE_BLOCK ||
 		    req->cmd->opcode == MMC_READ_MULTIPLE_BLOCK)
-			rtsx_read_count++;
+			sc->rtsx_read_count++;
 		else if (req->cmd->opcode == MMC_WRITE_BLOCK ||
 			 req->cmd->opcode == MMC_WRITE_MULTIPLE_BLOCK)
-			rtsx_write_count++;
+			sc->rtsx_write_count++;
 	} else {
 		rtsx_clear_error(sc);
 	}
@@ -3017,7 +3017,7 @@ rtsx_mmcbr_switch_vccq(device_t bus, device_t child __unused)
 		DELAY(300);
 	}
 
-	if (bootverbose || rtsx_debug)
+	if (bootverbose || sc->rtsx_debug)
 		device_printf(sc->rtsx_dev, "rtsx_mmcbr_switch_vccq(%d)\n", vccq);
 
 	return (0);
@@ -3037,7 +3037,7 @@ rtsx_mmcbr_tune(device_t bus, device_t child __unused, bool hs400)
 
 	sc = device_get_softc(bus);
 
-	if (bootverbose || rtsx_debug)
+	if (bootverbose || sc->rtsx_debug)
 		device_printf(sc->rtsx_dev, "rtsx_mmcbr_tune() - hs400 is %s\n",
 			      (hs400) ? "true" : "false");
 
@@ -3077,21 +3077,21 @@ rtsx_mmcbr_tune(device_t bus, device_t child __unused, bool hs400)
 
 	phase_map = 0xffffffff;
 	for (i = 0; i < RTSX_RX_TUNING_CNT; i++) {
-		if (bootverbose || rtsx_debug)
+		if (bootverbose || sc->rtsx_debug)
 			device_printf(sc->rtsx_dev, "rtsx_mmcbr_tune() - RX raw_phase_map[%d]: 0x%08x\n",
 				      i, raw_phase_map[i]);
 		phase_map &= raw_phase_map[i];
 	}
-	if (bootverbose || rtsx_debug)
+	if (bootverbose || sc->rtsx_debug)
 		device_printf(sc->rtsx_dev, "rtsx_mmcbr_tune() - RX phase_map: 0x%08x\n", phase_map);
 
 	if (phase_map) {
 		final_phase = rtsx_sd_search_final_rx_phase(sc, phase_map);
 		if (final_phase != 0xff) {
-			if (rtsx_debug == 1) {
-				rtsx_debug = 2;
+			if (sc->rtsx_debug == 1) {
+				sc->rtsx_debug = 2;
 				rtsx_sd_change_rx_phase(sc, final_phase);
-				rtsx_debug = 1;
+				sc->rtsx_debug = 1;
 			} else {
 				rtsx_sd_change_rx_phase(sc, final_phase);
 			}
@@ -3285,12 +3285,16 @@ rtsx_attach(device_t dev)
 
 	sc->rtsx_dev = dev;
 	sc->rtsx_timeout = 10;
-	sc->rtsx_force_timing = 0;
+	sc->rtsx_read_only = 0;
 #ifdef RTSX_INVERSION
 	sc->rtsx_inversion = 1;
 #else
 	sc->rtsx_inversion = 0;
 #endif
+	sc->rtsx_force_timing = 0;
+	sc->rtsx_debug = 0;
+	sc->rtsx_read_count = 0;
+	sc->rtsx_write_count = 0;
 
 	RTSX_LOCK_INIT(sc);
 
@@ -3302,14 +3306,14 @@ rtsx_attach(device_t dev)
 		      &sc->rtsx_read_only, 0, "Card is write protected");
 	SYSCTL_ADD_U8(ctx, tree, OID_AUTO, "inversion", CTLFLAG_RW,
 		      &sc->rtsx_inversion, 0, "Inversion of card detection and read only status");
-	SYSCTL_ADD_INT(ctx, tree, OID_AUTO, "force_timing", CTLFLAG_RW,
-		       &sc->rtsx_force_timing, 0, "Force bus_timing_uhs_sdr50");
-	SYSCTL_ADD_INT(ctx, tree, OID_AUTO, "debug", CTLFLAG_RW,
-		       &rtsx_debug, 0, "Debugging flag");
+	SYSCTL_ADD_U8(ctx, tree, OID_AUTO, "force_timing", CTLFLAG_RW,
+		      &sc->rtsx_force_timing, 0, "Force bus_timing_uhs_sdr50");
+	SYSCTL_ADD_U8(ctx, tree, OID_AUTO, "debug", CTLFLAG_RW,
+		      &sc->rtsx_debug, 0, "Debugging flag");
 	SYSCTL_ADD_U64(ctx, tree, OID_AUTO, "read_count", CTLFLAG_RD,
-		       &rtsx_read_count, 0, "Count of read operations");
+		       &sc->rtsx_read_count, 0, "Count of read operations");
 	SYSCTL_ADD_U64(ctx, tree, OID_AUTO, "write_count", CTLFLAG_RD,
-		       &rtsx_write_count, 0, "Count of write operations");
+		       &sc->rtsx_write_count, 0, "Count of write operations");
 
 	/* Allocate IRQ. */
 	sc->rtsx_irq_res_id = 0;

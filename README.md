@@ -58,11 +58,10 @@ For debugging:
    (Acer Aspire E 15 E5-576-77W6, ACER ASPIRE 5 A515-51G-C97B)
 
 #### KNOWN BUGS:
-
- - Some configurations experience timeout/reset during card detection. Removing and reinserting
-   the card solve the problem. Otherwise I/O work correctly.
+ - The timeouts experienced during card insert and during I/O are solved in version 1.0g.
  - RTS522A on Lenovo P50s and Lenovo T470p, card detection and read-only switch are reversed.
    To adapt the driver: make -D RTSX_INVERSION.
+ - Mounting a filesystem with write access on a card write protected may involve a kernel crash.
 
 #### NOTE:
  

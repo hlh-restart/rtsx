@@ -79,8 +79,9 @@ driver was ported from OpenBSD with modifications found in Linux and OpenBSD.
 .Sh BUGS
 .Bl -bullet
 .It
-Some configurations may experience timeout. Removing and reinserting the card solve
-the problem. Of course the filesystem need a fsck ot a zpool clear/scrub.
+The timeouts experienced during card insert and during I/O are solved in version 1.0g.
 .It
 RTS522A on Lenovo P50s and Lenovo T470p, card detection and read-only switch are reversed.
+.It
+Mounting a filesystem with write access on a card write protected may involve a kernel crash.
 .El
