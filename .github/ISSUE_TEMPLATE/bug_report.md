@@ -14,7 +14,10 @@ e.g. Aspire E15 - E5-576-77W6
 **Hardware description**
 
 ```
-The output of ` pciconf -lvb rtsx0 `
+The output of 
+` pciconf -lvb rtsx0 `
+and
+` sysctl dev.rtsx `
 ```
 **FreeBSD version**
 
