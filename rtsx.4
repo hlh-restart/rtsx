@@ -31,34 +31,58 @@
 .Nm rtsx
 .Nd Realtek SD card reader
 .Sh SYNOPSIS
-To load the driver as a module at boot time, place the
-following lines in
+To compile this driver into the kernel, place the following
+lines in your kernel configuration file:
+.Bd -ragged -offset indent
+.Cd "device mmc"
+.Cd "device mmcsd"
+.Cd "device rtsx"
+.Ed
+.Pp
+Alternatively, to load the driver as a module at boot time,
+place the following lines in
 .Xr loader.conf 5 :
 .Bd -literal -offset indent
 mmc_load="YES"
 mmcsd_load="YES"
 rtsx_load="YES"
 .Ed
-.Pp
-Or if the kernel configuration file contains:
-.Bd -literal -offset indent
-.Cd "device mmc"
-.Cd "device mmcsd"
-.Ed
-.Pp
-place in
-.Xr loader.conf 5 :
-.Bd -literal -offset indent
-rtsx_load="YES"
-.Ed
 .Sh DESCRIPTION
 The
 .Nm
-driver provides support for the Realtek RTS5209, RTS5227, RTS5229, RTS522A, RTS525A
-and RTL8411B SD card readers.
+driver provides support for Realtek SD card reader. Driver attaches mmc
+bus on card insertion and detaches it on card removing.
+.Sh HARDWARE
+The
+.Nm
+driver supports different specification compatible chips.
+The following chips have been verified to work:
 .Pp
-It should also work for the Realtek RTS5249, RTL8402, and RTL8411
-SD card readers.
+.Bl -bullet -compact
+.It
+RTS5209
+.It
+RTS5227
+.It
+RTS5229
+.It
+RTS522A
+.It
+RTS525A
+.It
+RTL8411B
+.El
+.Pp
+It should also work for:
+.Pp
+.Bl -bullet -compact
+.It
+RTS5249
+.It
+RTL8402
+.It
+RTL8411
+.El
 .Sh HISTORY
 The
 .Nm
@@ -82,6 +106,10 @@ driver was ported from OpenBSD with modifications found in Linux and OpenBSD.
 The timeouts experienced during card insert and during I/O are solved in version 1.0g.
 .It
 RTS522A on Lenovo P50s and Lenovo T470p, card detection and read-only switch are reversed.
+This is sovled with:
+.Bd -ragged
+.Cd options    RTSX_INVERSION
+.Ed
 .It
 Mounting a filesystem with write access on a card write protected may involve a kernel crash.
 .El

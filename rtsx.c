@@ -308,7 +308,7 @@ static int	rtsx_mmcbr_release_host(device_t bus, device_t child __unused);
 			return (err);				\
 	} while (0)
 
-/* 
+/*
  * We use two DMA buffers: a command buffer and a data buffer.
  *
  * The command buffer contains a command queue for the host controller,
@@ -2363,7 +2363,7 @@ rtsx_ask_ppbuf_part1(struct rtsx_softc *sc)
 	int	 len;
 	int	 i;
 
- 	cmd = sc->rtsx_req->cmd;
+	cmd = sc->rtsx_req->cmd;
 	len = (cmd->data->len > RTSX_HOSTCMD_MAX) ? RTSX_HOSTCMD_MAX : cmd->data->len;
 
 	sc->rtsx_cmd_index = 0;
@@ -2472,7 +2472,7 @@ rtsx_put_ppbuf_part1(struct rtsx_softc *sc)
 	int	 len;
 	int	 i;
 
- 	cmd = sc->rtsx_req->cmd;
+	cmd = sc->rtsx_req->cmd;
 	ptr = cmd->data->data;
 	len = (cmd->data->len > RTSX_HOSTCMD_MAX) ? RTSX_HOSTCMD_MAX : cmd->data->len;
 
@@ -2507,7 +2507,7 @@ rtsx_put_ppbuf_part2(struct rtsx_softc *sc)
 	int	 len;
 	int	 i;
 
- 	cmd = sc->rtsx_req->cmd;
+	cmd = sc->rtsx_req->cmd;
 	ptr = cmd->data->data;
 	ptr += RTSX_HOSTCMD_MAX;
 	len = cmd->data->len - RTSX_HOSTCMD_MAX;
@@ -2534,7 +2534,7 @@ rtsx_write_ppbuf(struct rtsx_softc *sc)
 {
 	struct mmc_command *cmd;
 
- 	cmd = sc->rtsx_req->cmd;
+	cmd = sc->rtsx_req->cmd;
 
 	sc->rtsx_cmd_index = 0;
 
@@ -2641,7 +2641,7 @@ rtsx_xfer_start(struct rtsx_softc *sc)
 		 * already send the read command and don't need to send
 		 * CMD 12 manually after read.
 		 */
-     		tmode = RTSX_TM_AUTO_READ1;
+		tmode = RTSX_TM_AUTO_READ1;
 		cfg2 |= RTSX_SD_CALCULATE_CRC7 | RTSX_SD_CHECK_CRC7;
 
 		rtsx_init_cmd(sc, cmd);
@@ -3211,7 +3211,7 @@ rtsx_mmcbr_acquire_host(device_t bus, device_t child __unused)
 
 	return (0);
 }
-	       
+
 static int
 rtsx_mmcbr_release_host(device_t bus, device_t child __unused)
 {
@@ -3379,7 +3379,7 @@ rtsx_attach(device_t dev)
 		goto destroy_rtsx_irq;
 	}
 
-	/* 
+	/*
 	 * Schedule a card detection as we won't get an interrupt
 	 * if the card is inserted when we attach
 	 */
@@ -3511,7 +3511,7 @@ static device_method_t rtsx_methods[] = {
 	DEVMETHOD(bus_write_ivar,	rtsx_write_ivar),
 
 	/* MMC bridge interface */
-     	DEVMETHOD(mmcbr_update_ios,	rtsx_mmcbr_update_ios),
+	DEVMETHOD(mmcbr_update_ios,	rtsx_mmcbr_update_ios),
 	DEVMETHOD(mmcbr_switch_vccq,	rtsx_mmcbr_switch_vccq),
 	DEVMETHOD(mmcbr_tune,		rtsx_mmcbr_tune),
 	DEVMETHOD(mmcbr_retune,		rtsx_mmcbr_retune),
