@@ -1328,8 +1328,6 @@ rtsx_write_phy(struct rtsx_softc *sc, uint8_t addr, uint16_t val)
 static int
 rtsx_bus_power_off(struct rtsx_softc *sc)
 {
-//	int	error;
-
 	if (bootverbose || sc->rtsx_debug)
 		device_printf(sc->rtsx_dev, "rtsx_bus_power_off()\n");
 
@@ -1706,7 +1704,7 @@ rtsx_set_sd_clock(struct rtsx_softc *sc, uint32_t freq)
 		break;
 	}
 	if ((clk <= 2) || (n > RTSX_MAX_DIV_N))
-		return MMC_ERR_INVALID;
+		return (MMC_ERR_INVALID);
 
 	mcu = 125 / clk + 3;
 	if (mcu > 15)
@@ -1891,7 +1889,7 @@ rtsx_sd_tuning_rx_cmd_wait(struct rtsx_softc *sc, struct mmc_command *cmd)
 	while (status == 0) {
 		if (msleep(&sc->rtsx_intr_status, &sc->rtsx_mtx, 0, "rtsxintr", sc->rtsx_timeout) == EWOULDBLOCK) {
 			cmd->error = MMC_ERR_TIMEOUT;
-			return (cmd->error);
+			return (MMC_ERR_TIMEOUT);
 		}
 		status = sc->rtsx_intr_status & mask;
 	}
@@ -2609,13 +2607,11 @@ rtsx_xfer_begin(struct rtsx_softc *sc)
 		device_printf(sc->rtsx_dev, "rtsx_xfer_begin() - CMD%d\n", cmd->opcode);
 
 	rtsx_set_resp(sc, cmd);
-
 	rtsx_xfer_start(sc);
 }
 
 /*
  * Start dma data transfer.
- * This Function is called by the interrupt handler via sc->rtsx_intr_trans_ok.
  */
 static void
 rtsx_xfer_start(struct rtsx_softc *sc)
@@ -3145,16 +3141,14 @@ rtsx_mmcbr_request(device_t bus, device_t child __unused, struct mmc_request *re
 
 	/* Check if card present. */
 	if (!ISSET(sc->rtsx_flags, RTSX_F_CARD_PRESENT)) {
-		cmd->error = MMC_ERR_FAILED;
-		error = MMC_ERR_FAILED;
+		cmd->error = error = MMC_ERR_FAILED;
 		goto end;
 	}
 
 	/* Refuse SDIO probe if the chip doesn't support SDIO. */
 	if (cmd->opcode == IO_SEND_OP_COND &&
 	    !ISSET(sc->rtsx_flags, RTSX_F_SDIO_SUPPORT)) {
-		cmd->error = MMC_ERR_INVALID;
-		error = MMC_ERR_INVALID;
+		cmd->error = error = MMC_ERR_INVALID;
 		goto end;
 	}
 
