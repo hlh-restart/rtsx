@@ -2972,34 +2972,41 @@ rtsx_cam_set_tran_settings(struct rtsx_softc *sc, union ccb *ccb)
 	if (cts->ios_valid & MMC_CLK) {
 		ios->clock = new_ios->clock;
 		sc->rtsx_ios_clock = -1;	/* To be updated by rtsx_mmcbr_update_ios(). */
-		device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - clock: %u\n", ios->clock);
+		if (bootverbose || sc->rtsx_debug)
+			device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - clock: %u\n", ios->clock);
 	}
 	if (cts->ios_valid & MMC_VDD) {
 		ios->vdd = new_ios->vdd;
-		device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - vdd: %d\n", ios->vdd);
+		if (bootverbose || sc->rtsx_debug)
+			device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - vdd: %d\n", ios->vdd);
 	}
 	if (cts->ios_valid & MMC_CS) {
 		ios->chip_select = new_ios->chip_select;
-		device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - chip_select: %d\n", ios->chip_select);
+		if (bootverbose || sc->rtsx_debug)
+			device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - chip_select: %d\n", ios->chip_select);
 	}
 	if (cts->ios_valid & MMC_BW) {
 		ios->bus_width = new_ios->bus_width;
 		sc->rtsx_ios_bus_width = -1;	/* To be updated by rtsx_mmcbr_update_ios(). */
-		device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - bus width: %d\n", ios->bus_width);
+		if (bootverbose || sc->rtsx_debug)
+			device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - bus width: %d\n", ios->bus_width);
 	}
 	if (cts->ios_valid & MMC_PM) {
 		ios->power_mode = new_ios->power_mode;
 		sc->rtsx_ios_power_mode = -1;	/* To be updated by rtsx_mmcbr_update_ios(). */
-		device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - power mode: %d\n", ios->power_mode);
+		if (bootverbose || sc->rtsx_debug)
+			device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - power mode: %d\n", ios->power_mode);
 	}
 	if (cts->ios_valid & MMC_BT) {
 		ios->timing = new_ios->timing;
 		sc->rtsx_ios_timing = -1;	/* To be updated by rtsx_mmcbr_update_ios(). */
-		device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - timing: %d\n", ios->timing);
+		if (bootverbose || sc->rtsx_debug)
+			device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - timing: %d\n", ios->timing);
 	}
 	if (cts->ios_valid & MMC_BM) {
 		ios->bus_mode = new_ios->bus_mode;
-		device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - bus mode: %d\n", ios->bus_mode);
+		if (bootverbose || sc->rtsx_debug)
+			device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - bus mode: %d\n", ios->bus_mode);
 	}
 
 	return (rtsx_mmcbr_update_ios(sc->rtsx_dev, NULL));
@@ -3421,6 +3428,12 @@ rtsx_mmcbr_request(device_t bus, device_t child __unused, struct mmc_request *re
 	if (cmd->opcode == IO_SEND_OP_COND &&
 	    !ISSET(sc->rtsx_flags, RTSX_F_SDIO_SUPPORT)) {
 		cmd->error = error = MMC_ERR_INVALID;
+		goto end;
+	}
+
+	/* Return MMC_ERR_TIMEOUT for SD_IO_RW_DIRECT and IO_SEND_OP_COND. */
+	if (cmd->opcode == SD_IO_RW_DIRECT || cmd->opcode == IO_SEND_OP_COND) {
+		cmd->error = error = MMC_ERR_TIMEOUT;
 		goto end;
 	}
 
