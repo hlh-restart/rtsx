@@ -714,7 +714,7 @@ rtsx_card_task(void *arg, int pending __unused)
 			}
 			RTSX_UNLOCK(sc);
 			xpt_rescan(ccb);
-#else			
+#else
 			RTSX_UNLOCK(sc);
 			if (device_delete_child(sc->rtsx_dev, sc->rtsx_mmc_dev))
 				device_printf(sc->rtsx_dev, "Detaching MMC bus failed\n");
