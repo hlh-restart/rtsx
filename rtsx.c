@@ -128,7 +128,7 @@ struct rtsx_softc {
 	uint8_t		rtsx_force_timing;	/* force bus_timing_uhs_sdr50 */
 	uint8_t		rtsx_debug;		/* print debugging */
 #ifdef MMCCAM
-	uint8_t		rtsx_cam_status;	/* rtsx cam status */
+	uint8_t		rtsx_cam_status;	/* CAM status - 1 if card in use */
 #endif /* MMCCAM */
 	uint64_t	rtsx_read_count;	/* count of read operations */
 	uint64_t	rtsx_write_count;	/* count of write operations */
