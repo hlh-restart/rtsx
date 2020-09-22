@@ -182,7 +182,7 @@
 #define	RTSX_SD30_DAT_DRIVE_SEL		0xFD5F
 
 /* Card clock. */
-#define	RTSX_CARD_CLK_EN		0xFD69 
+#define	RTSX_CARD_CLK_EN		0xFD69
 #define	RTSX_XD_CLK_EN			0x02
 #define	RTSX_SD_CLK_EN			0x04
 #define	RTSX_MS_CLK_EN			0x08
@@ -428,14 +428,14 @@
 #define	RTSX_TM_AUTO_WRITE3		0x01
 
 /* Like AUTO_WRITE3, plus automatically send CMD 12 when done.
- * The response to CMD 12 is written to SD_CMD{0,1,2,3,4}. */ 
+ * The response to CMD 12 is written to SD_CMD{0,1,2,3,4}. */
 #define	RTSX_TM_AUTO_WRITE4		0x02
 
 /* Read (SD_BYTE_CNT * SD_BLOCK_CNT) bytes from card into ring buffer. */
 #define	RTSX_TM_AUTO_READ3		0x05
 
 /* Like AUTO_READ3, plus automatically send CMD 12 when done.
- * The response to CMD 12 is written to SD_CMD{0,1,2,3,4}. */ 
+ * The response to CMD 12 is written to SD_CMD{0,1,2,3,4}. */
 #define	RTSX_TM_AUTO_READ4		0x06
 
 /* Send an SD command described in SD_CMD{0,1,2,3,4} to the card and put
@@ -445,7 +445,7 @@
 
 /* Send write command, get response from the card, write data from ring
  * buffer to card, and send CMD 12 when done.
- * The response to CMD 12 is written to SD_CMD{0,1,2,3,4}. */ 
+ * The response to CMD 12 is written to SD_CMD{0,1,2,3,4}. */
 #define	RTSX_TM_AUTO_WRITE1		0x09
 
 /* Like AUTO_WRITE1 except no CMD 12 is sent. */

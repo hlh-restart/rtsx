@@ -25,7 +25,7 @@ kldload rtsx
 ```
 For debugging:
  `sysctl debug.bootverbose=1`
- 
+
 #### HISTORY:
 
  - probe of Vendor ID: 0x10ec - Device ID: 0x5287
@@ -64,5 +64,5 @@ For debugging:
  - Mounting a filesystem with write access on a card write protected may involve a kernel crash.
 
 #### NOTE:
- 
+
  - See https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=204521
