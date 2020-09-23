@@ -24,7 +24,7 @@
 .\"
 .\" $FreeBSD$
 .\"
-.Dd May 27, 2020
+.Dd September 23, 2020
 .Dt RTSX 4
 .Os
 .Sh NAME
@@ -32,7 +32,7 @@
 .Nd Realtek SD card reader
 .Sh SYNOPSIS
 To compile this driver into the kernel, place the following
-lines in your kernel configuration file:
+lines in the kernel configuration file:
 .Bd -ragged -offset indent
 .Cd "device mmc"
 .Cd "device mmcsd"
@@ -50,8 +50,8 @@ rtsx_load="YES"
 .Sh DESCRIPTION
 The
 .Nm
-driver provides support for Realtek SD card reader. Driver attaches mmc
-bus on card insertion and detaches it on card removing.
+driver provides support for Realtek SD card reader.
+Driver attaches mmc bus on card insertion and detaches it on card removing.
 .Sh HARDWARE
 The
 .Nm
@@ -83,10 +83,6 @@ RTL8402
 .It
 RTL8411
 .El
-.Sh HISTORY
-The
-.Nm
-driver was ported from OpenBSD with modifications found in Linux and OpenBSD.
 .Sh SEE ALSO
 .Xr mmc 4 ,
 .Xr mmcsd 4
@@ -94,6 +90,13 @@ driver was ported from OpenBSD with modifications found in Linux and OpenBSD.
 .%T "SD Specifications, Part 2, SD Host Controller, Simplified Specification"
 .%T "SanDisk Secure Digital Card"
 .Re
+.Sh HISTORY
+The
+.Nm
+driver was ported from
+.Ox
+with modifications found in Linux and
+.Nx .
 .Sh AUTHORS
 .An Henri Hennebert Aq Mt hlh@restart.be
 .An Gary Jennejohn Aq Mt gj@freebsd.org
