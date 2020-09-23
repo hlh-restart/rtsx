@@ -32,7 +32,7 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
- */ 
+ */
 
 #include <sys/cdefs.h>
 __FBSDID("$FreeBSD$");
@@ -122,13 +122,13 @@ struct rtsx_softc {
 	int8_t		rtsx_ios_bus_width;	/* current host.ios.bus_width */
 	int32_t		rtsx_ios_clock;		/* current host.ios.clock */
 	int8_t		rtsx_ios_power_mode;	/* current host.ios.power mode */
-	int8_t		rtsx_ios_timing;	/* current host.ios.timing */	
+	int8_t		rtsx_ios_timing;	/* current host.ios.timing */
 	uint8_t		rtsx_read_only;		/* card read only status */
 	uint8_t		rtsx_inversion;		/* inversion of card detection and read only status */
 	uint8_t		rtsx_force_timing;	/* force bus_timing_uhs_sdr50 */
 	uint8_t		rtsx_debug;		/* print debugging */
 #ifdef MMCCAM
-	uint8_t		rtsx_cam_status;	/* rtsx cam status */
+	uint8_t		rtsx_cam_status;	/* CAM status - 1 if card in use */
 #endif /* MMCCAM */
 	uint64_t	rtsx_read_count;	/* count of read operations */
 	uint64_t	rtsx_write_count;	/* count of write operations */
@@ -520,7 +520,7 @@ rtsx_dma_free(struct rtsx_softc *sc) {
 		sc->rtsx_data_dma_tag = NULL;
 	}
 }
-	
+
 static void
 rtsx_intr(void *arg)
 {
@@ -714,7 +714,7 @@ rtsx_card_task(void *arg, int pending __unused)
 			}
 			RTSX_UNLOCK(sc);
 			xpt_rescan(ccb);
-#else			
+#else
 			RTSX_UNLOCK(sc);
 			if (device_delete_child(sc->rtsx_dev, sc->rtsx_mmc_dev))
 				device_printf(sc->rtsx_dev, "Detaching MMC bus failed\n");
@@ -2129,7 +2129,7 @@ rtsx_init_cmd(struct rtsx_softc *sc, struct mmc_command *cmd)
 {
 	sc->rtsx_cmd_index = 0;
 	rtsx_push_cmd(sc, RTSX_WRITE_REG_CMD, RTSX_SD_CMD0,
-		      0xff, RTSX_SD_CMD_START  | cmd->opcode); 
+		      0xff, RTSX_SD_CMD_START  | cmd->opcode);
 	rtsx_push_cmd(sc, RTSX_WRITE_REG_CMD, RTSX_SD_CMD1,
 		     0xff, cmd->arg >> 24);
 	rtsx_push_cmd(sc, RTSX_WRITE_REG_CMD, RTSX_SD_CMD2,
@@ -2185,7 +2185,7 @@ rtsx_send_cmd(struct rtsx_softc *sc)
 		device_printf(sc->rtsx_dev, "rtsx_send_cmd()\n");
 
 	sc->rtsx_intr_status = 0;
-	
+
 	/* Sync command DMA buffer. */
 	bus_dmamap_sync(sc->rtsx_cmd_dma_tag, sc->rtsx_cmd_dmamap, BUS_DMASYNC_PREREAD);
 	bus_dmamap_sync(sc->rtsx_cmd_dma_tag, sc->rtsx_cmd_dmamap, BUS_DMASYNC_PREWRITE);
@@ -2268,7 +2268,7 @@ rtsx_send_req(struct rtsx_softc *sc, struct mmc_command *cmd) {
 
 	if (bootverbose)
 		device_printf(sc->rtsx_dev, "rtsx_send_req() - CMD%d\n", cmd->opcode);
-	
+
 	/* Convert response type. */
 	rsp_type = rtsx_response_type(cmd->flags & MMC_RSP_MASK);
 	if (rsp_type == 0) {
@@ -2379,7 +2379,6 @@ rtsx_set_resp(struct rtsx_softc *sc, struct mmc_command *cmd)
 		if (bootverbose)
 			device_printf(sc->rtsx_dev, "cmd->resp: 0x%08x 0x%08x 0x%08x 0x%08x\n",
 				      cmd->resp[0], cmd->resp[1], cmd->resp[2], cmd->resp[3]);
-		
 	}
 }
 
@@ -2415,7 +2414,7 @@ rtsx_xfer_short(struct rtsx_softc *sc, struct mmc_command *cmd)
 	if (read) {
 		if (sc->rtsx_discovery_mode)
 			rtsx_write(sc, RTSX_SD_CFG1, RTSX_CLK_DIVIDE_MASK, RTSX_CLK_DIVIDE_0);
-		
+
 		rtsx_init_cmd(sc, cmd);
 
 		/* Queue commands to configure data transfer size. */
@@ -2493,7 +2492,7 @@ rtsx_get_ppbuf_part1(struct rtsx_softc *sc)
 	cmd = sc->rtsx_req->cmd;
 	ptr = cmd->data->data;
 	len = (cmd->data->len > RTSX_HOSTCMD_MAX) ? RTSX_HOSTCMD_MAX : cmd->data->len;
-	
+
 	/* Sync command DMA buffer. */
 	bus_dmamap_sync(sc->rtsx_cmd_dma_tag, sc->rtsx_cmd_dmamap, BUS_DMASYNC_POSTREAD);
 	bus_dmamap_sync(sc->rtsx_cmd_dma_tag, sc->rtsx_cmd_dmamap, BUS_DMASYNC_POSTWRITE);
@@ -2524,7 +2523,7 @@ rtsx_get_ppbuf_part1(struct rtsx_softc *sc)
 				      ptr[0], ptr[1], ptr[2], ptr[3],
 				      ptr[4], ptr[5], ptr[6], ptr[7]);
 		}
-		
+
 		if (sc->rtsx_discovery_mode)
 			rtsx_write(sc, RTSX_SD_CFG1, RTSX_CLK_DIVIDE_MASK, RTSX_CLK_DIVIDE_128);
 
@@ -2584,7 +2583,7 @@ rtsx_put_ppbuf_part1(struct rtsx_softc *sc)
 		rtsx_push_cmd(sc, RTSX_WRITE_REG_CMD, reg++, 0xff, *ptr);
 		ptr++;
 	}
-	
+
 	/* Set transfer OK function. */
 	if (cmd->data->len > RTSX_HOSTCMD_MAX)
 		sc->rtsx_intr_trans_ok = rtsx_put_ppbuf_part2;
@@ -2691,7 +2690,7 @@ rtsx_xfer(struct rtsx_softc *sc, struct mmc_command *cmd)
 	} else {
 		rtsx_xfer_start(sc);
 	}
-	
+
 	return (0);
 }
 
@@ -2727,7 +2726,7 @@ rtsx_xfer_start(struct rtsx_softc *sc)
 
 	cmd = sc->rtsx_req->cmd;
 	read = ISSET(cmd->data->flags, MMC_DATA_READ);
-	
+
 	/* Configure DMA transfer mode parameters. */
 	if (cmd->opcode == MMC_READ_MULTIPLE_BLOCK)
 		cfg2 = RTSX_SD_CHECK_CRC16 | RTSX_SD_NO_WAIT_BUSY_END | RTSX_SD_RSP_LEN_6;
@@ -2972,34 +2971,41 @@ rtsx_cam_set_tran_settings(struct rtsx_softc *sc, union ccb *ccb)
 	if (cts->ios_valid & MMC_CLK) {
 		ios->clock = new_ios->clock;
 		sc->rtsx_ios_clock = -1;	/* To be updated by rtsx_mmcbr_update_ios(). */
-		device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - clock: %u\n", ios->clock);
+		if (bootverbose || sc->rtsx_debug)
+			device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - clock: %u\n", ios->clock);
 	}
 	if (cts->ios_valid & MMC_VDD) {
 		ios->vdd = new_ios->vdd;
-		device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - vdd: %d\n", ios->vdd);
+		if (bootverbose || sc->rtsx_debug)
+			device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - vdd: %d\n", ios->vdd);
 	}
 	if (cts->ios_valid & MMC_CS) {
 		ios->chip_select = new_ios->chip_select;
-		device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - chip_select: %d\n", ios->chip_select);
+		if (bootverbose || sc->rtsx_debug)
+			device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - chip_select: %d\n", ios->chip_select);
 	}
 	if (cts->ios_valid & MMC_BW) {
 		ios->bus_width = new_ios->bus_width;
 		sc->rtsx_ios_bus_width = -1;	/* To be updated by rtsx_mmcbr_update_ios(). */
-		device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - bus width: %d\n", ios->bus_width);
+		if (bootverbose || sc->rtsx_debug)
+			device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - bus width: %d\n", ios->bus_width);
 	}
 	if (cts->ios_valid & MMC_PM) {
 		ios->power_mode = new_ios->power_mode;
 		sc->rtsx_ios_power_mode = -1;	/* To be updated by rtsx_mmcbr_update_ios(). */
-		device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - power mode: %d\n", ios->power_mode);
+		if (bootverbose || sc->rtsx_debug)
+			device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - power mode: %d\n", ios->power_mode);
 	}
 	if (cts->ios_valid & MMC_BT) {
 		ios->timing = new_ios->timing;
 		sc->rtsx_ios_timing = -1;	/* To be updated by rtsx_mmcbr_update_ios(). */
-		device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - timing: %d\n", ios->timing);
+		if (bootverbose || sc->rtsx_debug)
+			device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - timing: %d\n", ios->timing);
 	}
 	if (cts->ios_valid & MMC_BM) {
 		ios->bus_mode = new_ios->bus_mode;
-		device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - bus mode: %d\n", ios->bus_mode);
+		if (bootverbose || sc->rtsx_debug)
+			device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - bus mode: %d\n", ios->bus_mode);
 	}
 
 	return (rtsx_mmcbr_update_ios(sc->rtsx_dev, NULL));
@@ -3114,7 +3120,7 @@ rtsx_write_ivar(device_t bus, device_t child, int which, uintptr_t value)
 		sc->rtsx_host.ios.clock = value;
 		sc->rtsx_ios_clock = -1;	/* To be updated on next rtsx_mmcbr_update_ios(). */
 		break;
-	case MMCBR_IVAR_MODE:			/* ivar  7 - 0 = mode_mmc, 1 = mode_sd */ 
+	case MMCBR_IVAR_MODE:			/* ivar  7 - 0 = mode_mmc, 1 = mode_sd */
 		sc->rtsx_host.mode = value;
 		break;
 	case MMCBR_IVAR_OCR:			/* ivar  8 - operation conditions register */
@@ -3124,7 +3130,7 @@ rtsx_write_ivar(device_t bus, device_t child, int which, uintptr_t value)
 		sc->rtsx_host.ios.power_mode = value;
 		sc->rtsx_ios_power_mode = -1;	/* To be updated on next rtsx_mmcbr_update_ios(). */
 		break;
-	case MMCBR_IVAR_VDD:			/* ivar 11 - voltage power pin */ 
+	case MMCBR_IVAR_VDD:			/* ivar 11 - voltage power pin */
 		sc->rtsx_host.ios.vdd = value;
 		break;
 	case MMCBR_IVAR_VCCQ:			/* ivar 12 - signaling: 0 = 1.20V, 1 = 1.80V, 2 = 3.30V */
@@ -3424,6 +3430,12 @@ rtsx_mmcbr_request(device_t bus, device_t child __unused, struct mmc_request *re
 		goto end;
 	}
 
+	/* Return MMC_ERR_TIMEOUT for SD_IO_RW_DIRECT and IO_SEND_OP_COND. */
+	if (cmd->opcode == SD_IO_RW_DIRECT || cmd->opcode == IO_SEND_OP_COND) {
+		cmd->error = error = MMC_ERR_TIMEOUT;
+		goto end;
+	}
+
 	/* Select SD card. */
 	RTSX_BITOP(sc, RTSX_CARD_SELECT, 0x07, RTSX_SD_MOD_SEL);
 	RTSX_BITOP(sc, RTSX_CARD_SHARE_MODE, RTSX_CARD_SHARE_MASK, RTSX_CARD_SHARE_48_SD);
@@ -3684,11 +3696,11 @@ rtsx_attach(device_t dev)
 
 	if (bootverbose)
 		device_printf(dev, "Device attached\n");
-	
+
 	return (0);
 
  destroy_rtsx_irq:
-	bus_teardown_intr(dev, sc->rtsx_irq_res, sc->rtsx_irq_cookie);	
+	bus_teardown_intr(dev, sc->rtsx_irq_res, sc->rtsx_irq_cookie);
  destroy_rtsx_res:
 	bus_release_resource(dev, SYS_RES_MEMORY, sc->rtsx_res_id,
 			     sc->rtsx_res);
@@ -3714,7 +3726,6 @@ rtsx_attach(device_t dev)
 	return (ENXIO);
 }
 
-	
 static int
 rtsx_detach(device_t dev)
 {
@@ -3742,9 +3753,9 @@ rtsx_detach(device_t dev)
 	rtsx_dma_free(sc);
 	if (sc->rtsx_res != NULL)
 		bus_release_resource(dev, SYS_RES_MEMORY, sc->rtsx_res_id,
-				     sc->rtsx_res);	
+				     sc->rtsx_res);
 	if (sc->rtsx_irq_cookie != NULL)
-		bus_teardown_intr(dev, sc->rtsx_irq_res, sc->rtsx_irq_cookie);	
+		bus_teardown_intr(dev, sc->rtsx_irq_res, sc->rtsx_irq_cookie);
 	if (sc->rtsx_irq_res != NULL) {
 		callout_drain(&sc->rtsx_timeout_callout);
 		bus_release_resource(dev, SYS_RES_IRQ, sc->rtsx_irq_res_id,
