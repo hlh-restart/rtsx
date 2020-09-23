@@ -58,6 +58,8 @@ __FBSDID("$FreeBSD$");
 #include <dev/mmc/mmcbrvar.h>
 #include <machine/_inttypes.h>
 
+#include "opt_mmccam.h"
+
 #ifdef MMCCAM
 #include <cam/cam.h>
 #include <cam/cam_ccb.h>
