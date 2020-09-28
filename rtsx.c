@@ -165,7 +165,7 @@ struct rtsx_softc {
 #define	RTSX_RTL8411		0x5289
 #define	RTSX_RTL8411B		0x5287
 
-#define	RTSX_VERSION		"2.0a"
+#define	RTSX_VERSION		"2.0b"
 
 static const struct rtsx_device {
 	uint16_t	vendor_id;
@@ -248,8 +248,8 @@ static void	rtsx_timeout(void *arg);
 #ifdef MMCCAM
 static void	rtsx_cam_action(struct cam_sim *sim, union ccb *ccb);
 static void	rtsx_cam_poll(struct cam_sim *sim);
-static int	rtsx_cam_set_tran_settings(struct rtsx_softc *sc, union ccb *ccb);
-static int	rtsx_cam_request(struct rtsx_softc *sc, union ccb *ccb);
+static void	rtsx_cam_set_tran_settings(struct rtsx_softc *sc, union ccb *ccb);
+static void	rtsx_cam_request(struct rtsx_softc *sc, union ccb *ccb);
 #endif /* MMCCAM */
 
 static int	rtsx_read_ivar(device_t bus, device_t child, int which, uintptr_t *result);
@@ -2924,9 +2924,8 @@ rtsx_cam_action(struct cam_sim *sim, union ccb *ccb)
 		if (bootverbose || sc->rtsx_debug)
 			device_printf(sc->rtsx_dev, "rtsx_cam_action() - got XPT_SET_TRAN_SETTINGS\n");
 
+		/* Apply settings and set ccb->ccb_h.status accordingly. */
 		rtsx_cam_set_tran_settings(sc, ccb);
-
-		ccb->ccb_h.status = CAM_REQ_CMP;
 		break;
 	case XPT_RESET_BUS:
 		if (bootverbose || sc->rtsx_debug)
@@ -2958,7 +2957,10 @@ rtsx_cam_poll(struct cam_sim *sim){
 	return;
 }
 
-static int
+/*
+ *  Apply settings and set ccb->ccb_h.status accordingly.
+*/
+static void
 rtsx_cam_set_tran_settings(struct rtsx_softc *sc, union ccb *ccb)
 {
 	struct mmc_ios *ios;
@@ -3010,16 +3012,25 @@ rtsx_cam_set_tran_settings(struct rtsx_softc *sc, union ccb *ccb)
 			device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - bus mode: %d\n", ios->bus_mode);
 	}
 
-	return (rtsx_mmcbr_update_ios(sc->rtsx_dev, NULL));
+	if (rtsx_mmcbr_update_ios(sc->rtsx_dev, NULL) == 0)
+		ccb->ccb_h.status = CAM_REQ_CMP;
+	else
+		ccb->ccb_h.status = CAM_REQ_CMP_ERR;
+
+	return;
 }
 
-static int
+/*
+ * Build a request and run it.
+ */
+static void
 rtsx_cam_request(struct rtsx_softc *sc, union ccb *ccb)
 {
 	RTSX_LOCK(sc);
 	if (sc->rtsx_ccb != NULL) {
 		RTSX_UNLOCK(sc);
-		return (EBUSY);
+		ccb->ccb_h.status = CAM_BUSY;
+		return;
 	}
 	sc->rtsx_ccb = ccb;
 	sc->rtsx_cam_req.cmd = &ccb->mmcio.cmd;
@@ -3027,8 +3038,7 @@ rtsx_cam_request(struct rtsx_softc *sc, union ccb *ccb)
 	RTSX_UNLOCK(sc);
 
 	rtsx_mmcbr_request(sc->rtsx_dev, NULL, &sc->rtsx_cam_req);
-
-	return (0);
+	return;
 }
 #endif /* MMCCAM */
 
