@@ -3029,7 +3029,7 @@ rtsx_cam_request(struct rtsx_softc *sc, union ccb *ccb)
 	RTSX_LOCK(sc);
 	if (sc->rtsx_ccb != NULL) {
 		RTSX_UNLOCK(sc);
-		ccb->ccb_h.status = CAM_BUSY;
+		ccb->ccb_h.status = CAM_BUSY;	/* i.e. CAM_REQ_CMP | CAM_REQ_CMP_ERR */ 
 		return;
 	}
 	sc->rtsx_ccb = ccb;
@@ -3574,6 +3574,7 @@ rtsx_attach(device_t dev)
 			      pci_get_vendor(dev), pci_get_device(dev));
 
 	sc->rtsx_dev = dev;
+	sc->rtsx_req = NULL;
 	sc->rtsx_timeout = 10;
 	sc->rtsx_read_only = 0;
 #ifdef RTSX_INVERSION
@@ -3666,6 +3667,7 @@ rtsx_attach(device_t dev)
 #ifdef MMCCAM
 	sc->rtsx_ccb = NULL;
 	sc->rtsx_cam_status = 0;
+
 	SYSCTL_ADD_U8(ctx, tree, OID_AUTO, "cam_status", CTLFLAG_RD,
 		      &sc->rtsx_cam_status, 0, "driver cam card present");
 	if ((sc->rtsx_devq = cam_simq_alloc(1)) == NULL) {
