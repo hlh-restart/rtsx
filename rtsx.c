@@ -125,6 +125,7 @@ struct rtsx_softc {
 	int32_t		rtsx_ios_clock;		/* current host.ios.clock */
 	int8_t		rtsx_ios_power_mode;	/* current host.ios.power mode */
 	int8_t		rtsx_ios_timing;	/* current host.ios.timing */
+	int8_t		rtsx_ios_vccq;		/* current host.ios.vccq */
 	uint8_t		rtsx_read_only;		/* card read only status */
 	uint8_t		rtsx_inversion;		/* inversion of card detection and read only status */
 	uint8_t		rtsx_force_timing;	/* force bus_timing_uhs_sdr50 */
@@ -165,7 +166,7 @@ struct rtsx_softc {
 #define	RTSX_RTL8411		0x5289
 #define	RTSX_RTL8411B		0x5287
 
-#define	RTSX_VERSION		"2.0b"
+#define	RTSX_VERSION		"2.0c"
 
 static const struct rtsx_device {
 	uint16_t	vendor_id;
@@ -384,8 +385,10 @@ static int	rtsx_resume(device_t dev);
  * CMD52	IO R/W direct
  * CMD5		Send Operation Conditions
  */
+
 static int
-rtsx_dma_alloc(struct rtsx_softc *sc) {
+rtsx_dma_alloc(struct rtsx_softc *sc)
+{
 	int	error = 0;
 
 	error = bus_dma_tag_create(bus_get_dma_tag(sc->rtsx_dev), /* inherit from parent */
@@ -491,8 +494,8 @@ rtsx_dmamap_cb(void *arg, bus_dma_segment_t *segs, int nsegs, int error)
 }
 
 static void
-rtsx_dma_free(struct rtsx_softc *sc) {
-
+rtsx_dma_free(struct rtsx_softc *sc)
+{
 	if (sc->rtsx_cmd_dma_tag != NULL) {
 		if (sc->rtsx_cmd_dmamap != NULL)
 			bus_dmamap_unload(sc->rtsx_cmd_dma_tag,
@@ -1702,7 +1705,6 @@ rtsx_set_bus_width(struct rtsx_softc *sc, enum mmc_bus_width width)
 static int
 rtsx_set_sd_timing(struct rtsx_softc *sc, enum mmc_bus_timing timing)
 {
-
 	if (timing == bus_timing_hs && sc->rtsx_force_timing) {
 		timing = bus_timing_uhs_sdr50;
 		sc->rtsx_ios_timing = timing;
@@ -1840,7 +1842,6 @@ rtsx_set_sd_clock(struct rtsx_softc *sc, uint32_t freq)
 static int
 rtsx_stop_sd_clock(struct rtsx_softc *sc)
 {
-
 	RTSX_CLR(sc, RTSX_CARD_CLK_EN, RTSX_CARD_CLK_EN_ALL);
 	RTSX_SET(sc, RTSX_SD_BUS_STAT, RTSX_SD_CLK_FORCE_STOP);
 
@@ -2053,7 +2054,6 @@ rtsx_sd_get_rx_phase_len(uint32_t phase_map, int start_bit)
 static int
 rtsx_led_enable(struct rtsx_softc *sc)
 {
-
 	switch (sc->rtsx_device_id) {
 	case RTSX_RTS5209:
 		RTSX_CLR(sc, RTSX_CARD_GPIO, RTSX_CARD_GPIO_LED_OFF);
@@ -2164,8 +2164,8 @@ rtsx_push_cmd(struct rtsx_softc *sc, uint8_t cmd, uint16_t reg,
  * Queue commands to configure data transfer size.
  */
 static void
-rtsx_set_cmd_data_len(struct rtsx_softc *sc, uint16_t block_cnt, uint16_t byte_cnt) {
-
+rtsx_set_cmd_data_len(struct rtsx_softc *sc, uint16_t block_cnt, uint16_t byte_cnt)
+{
 	rtsx_push_cmd(sc, RTSX_WRITE_REG_CMD, RTSX_SD_BLOCK_CNT_L,
 		      0xff, block_cnt & 0xff);
 	rtsx_push_cmd(sc, RTSX_WRITE_REG_CMD, RTSX_SD_BLOCK_CNT_H,
@@ -2174,7 +2174,6 @@ rtsx_set_cmd_data_len(struct rtsx_softc *sc, uint16_t block_cnt, uint16_t byte_c
 		      0xff, byte_cnt & 0xff);
 	rtsx_push_cmd(sc, RTSX_WRITE_REG_CMD, RTSX_SD_BYTE_CNT_H,
 		      0xff, byte_cnt >> 8);
-
 }
 
 /*
@@ -2202,8 +2201,8 @@ rtsx_send_cmd(struct rtsx_softc *sc)
  * Stop previous command.
  */
 static void
-rtsx_stop_cmd(struct rtsx_softc *sc) {
-
+rtsx_stop_cmd(struct rtsx_softc *sc)
+{
 	/* Stop command transfer. */
 	WRITE4(sc, RTSX_HCBCTLR, RTSX_STOP_CMD);
 
@@ -2264,7 +2263,8 @@ rtsx_req_done(struct rtsx_softc *sc)
  * Send request.
  */
 static int
-rtsx_send_req(struct rtsx_softc *sc, struct mmc_command *cmd) {
+rtsx_send_req(struct rtsx_softc *sc, struct mmc_command *cmd)
+{
 	uint8_t	 rsp_type;
 	uint16_t reg;
 
@@ -2885,7 +2885,7 @@ rtsx_cam_action(struct cam_sim *sim, union ccb *ccb)
 		cpi->max_target = 0;		/* maximal supported target ID */
 		cpi->max_lun = 0;		/* maximal supported LUN ID */
 		cpi->initiator_id = 1;		/* the SCSI ID of the controller itself */
-		cpi->maxio = MAXPHYS;		/* maximum io size */
+		cpi->maxio = RTSX_DMA_DATA_BUFSIZE;			/* maximum io size */
 		strncpy(cpi->sim_vid, "FreeBSD", SIM_IDLEN);		/* vendor ID of the SIM */
 		strncpy(cpi->hba_vid, "Realtek", HBA_IDLEN);		/* vendor ID of the HBA */
 		strncpy(cpi->dev_name, cam_sim_name(sim), DEV_IDLEN);	/* device name for SIM */
@@ -2915,6 +2915,9 @@ rtsx_cam_action(struct cam_sim *sim, union ccb *ccb)
 		cts->proto_specific.mmc.host_f_min = sc->rtsx_host.f_min;
 		cts->proto_specific.mmc.host_f_max = sc->rtsx_host.f_max;
 		cts->proto_specific.mmc.host_caps = sc->rtsx_host.caps;
+#if  __FreeBSD__ > 12
+		cts->proto_specific.mmc.host_max_data = RTSX_DMA_DATA_BUFSIZE / MMC_SECTOR_SIZE;
+#endif
 		memcpy(&cts->proto_specific.mmc.ios, &sc->rtsx_host.ios, sizeof(struct mmc_ios));
 
 		ccb->ccb_h.status = CAM_REQ_CMP;
@@ -2953,7 +2956,8 @@ rtsx_cam_action(struct cam_sim *sim, union ccb *ccb)
 }
 
 static void
-rtsx_cam_poll(struct cam_sim *sim){
+rtsx_cam_poll(struct cam_sim *sim)
+{
 	return;
 }
 
@@ -3011,7 +3015,14 @@ rtsx_cam_set_tran_settings(struct rtsx_softc *sc, union ccb *ccb)
 		if (bootverbose || sc->rtsx_debug)
 			device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - bus mode: %d\n", ios->bus_mode);
 	}
-
+#if  __FreeBSD__ > 12
+	if (cts->ios_valid & MMC_VCCQ) {
+		ios->vccq = new_ios->vccq;
+		sc->rtsx_ios_vccq = -1;		/* To be updated by rtsx_mmcbr_update_ios(). */
+		if (bootverbose || sc->rtsx_debug)
+			device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - vccq: %d\n", ios->vccq);
+	}
+#endif
 	if (rtsx_mmcbr_update_ios(sc->rtsx_dev, NULL) == 0)
 		ccb->ccb_h.status = CAM_REQ_CMP;
 	else
@@ -3092,7 +3103,7 @@ rtsx_read_ivar(device_t bus, device_t child, int which, uintptr_t *result)
 		*result = sc->rtsx_host.ios.timing;
 		break;
 	case MMCBR_IVAR_MAX_DATA:		/* ivar 15 */
-		*result = MAXPHYS / MMC_SECTOR_SIZE;
+		*result = RTSX_DMA_DATA_BUFSIZE / MMC_SECTOR_SIZE;
 		break;
 	case MMCBR_IVAR_RETUNE_REQ:		/* ivar 10 */
 	case MMCBR_IVAR_MAX_BUSY_TIMEOUT:	/* ivar 16 */
@@ -3146,7 +3157,8 @@ rtsx_write_ivar(device_t bus, device_t child, int which, uintptr_t value)
 		sc->rtsx_host.ios.vdd = value;
 		break;
 	case MMCBR_IVAR_VCCQ:			/* ivar 12 - signaling: 0 = 1.20V, 1 = 1.80V, 2 = 3.30V */
-		sc->rtsx_host.ios.vccq = value; /* rtsx_mmcbr_switch_vccq() will be called by mmc.c. */
+		sc->rtsx_host.ios.vccq = value;
+		sc->rtsx_ios_vccq = value;	/* rtsx_mmcbr_switch_vccq() will be called by mmc.c (MMCCAM undef). */
 		break;
 	case MMCBR_IVAR_TIMING:			/* ivar 14 - 0 = normal, 1 = timing_hs, ... */
 		sc->rtsx_host.ios.timing = value;
@@ -3220,6 +3232,13 @@ rtsx_mmcbr_update_ios(device_t bus, device_t child__unused)
 	if (sc->rtsx_ios_clock < 0) {
 		sc->rtsx_ios_clock = ios->clock;
 		if ((error = rtsx_set_sd_clock(sc, ios->clock)))
+			return (error);
+	}
+
+	/* if MMCCAM and vccq updated */
+	if (sc->rtsx_ios_vccq < 0) {
+		sc->rtsx_ios_vccq = ios->vccq;
+		if ((error = rtsx_mmcbr_switch_vccq(sc->rtsx_dev, NULL)))
 			return (error);
 	}
 
@@ -3796,7 +3815,6 @@ rtsx_detach(device_t dev)
 static int
 rtsx_shutdown(device_t dev)
 {
-
 	if (bootverbose)
 		device_printf(dev, "Shutdown\n");
 
@@ -3838,7 +3856,6 @@ rtsx_suspend(device_t dev)
 static int
 rtsx_resume(device_t dev)
 {
-
 	device_printf(dev, "Resume\n");
 
 	bus_generic_resume(dev);
