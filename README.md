@@ -23,8 +23,11 @@ kldload mmc
 kldload mmcsd
 kldload rtsx
 ```
-For debugging:
- `sysctl debug.bootverbose=1`
+#### For debugging:
+
+- `sysctl dev.rtsx.0.debug=1` some debugging informations.
+
+- `sysctl debug.bootverbose=1` verbose debuging informations.
 
 #### HISTORY:
 
@@ -60,8 +63,9 @@ For debugging:
 #### KNOWN BUGS:
  - The timeouts experienced during card insert and during I/O are solved in version 1.0g.
  - RTS522A on Lenovo P50s and Lenovo T470p, card detection and read-only switch are reversed.
-   To adapt the driver: make -D RTSX_INVERSION.
+   To adapt the driver add in loader.conf(5) ```dev.rtsx.0.inversion=1```.
  - Mounting a filesystem with write access on a card write protected may involve a kernel crash.
+ - Suspend/Resume do not work under MMCCAM.
 
 #### NOTE:
 

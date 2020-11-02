@@ -3596,11 +3596,6 @@ rtsx_attach(device_t dev)
 	sc->rtsx_req = NULL;
 	sc->rtsx_timeout = 10;
 	sc->rtsx_read_only = 0;
-#ifdef RTSX_INVERSION
-	sc->rtsx_inversion = 1;
-#else
-	sc->rtsx_inversion = 0;
-#endif /* RTSX_INVERSION */
 	sc->rtsx_force_timing = 0;
 	sc->rtsx_debug = 0;
 	sc->rtsx_read_count = 0;
@@ -3614,7 +3609,7 @@ rtsx_attach(device_t dev)
 		       &sc->rtsx_timeout, 0, "Request timeout in seconds");
 	SYSCTL_ADD_U8(ctx, tree, OID_AUTO, "read_only", CTLFLAG_RD,
 		      &sc->rtsx_read_only, 0, "Card is write protected");
-	SYSCTL_ADD_U8(ctx, tree, OID_AUTO, "inversion", CTLFLAG_RW,
+	SYSCTL_ADD_U8(ctx, tree, OID_AUTO, "inversion", CTLFLAG_RWTUN,
 		      &sc->rtsx_inversion, 0, "Inversion of card detection and read only status");
 	SYSCTL_ADD_U8(ctx, tree, OID_AUTO, "force_timing", CTLFLAG_RW,
 		      &sc->rtsx_force_timing, 0, "Force bus_timing_uhs_sdr50");

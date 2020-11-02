@@ -109,17 +109,13 @@ with modifications found in Linux and
 The timeouts experienced during card insert and during I/O are solved in version 1.0g.
 .It
 RTS522A on Lenovo P50s and Lenovo T470p, card detection and read-only switch are reversed.
-This is sovled with:
+This is sovled by adding in
+.Em loader.conf(5) :
 .Bd -ragged
-.Cd options    RTSX_INVERSION
-.Ed
-.Pp
-Or with:
-.Bd -ragged
-.Cd sysctl dev.rtsx.0.inversion=1
+.Cd dev.rtsx.0.inversion=1
 .Ed
 .It
 Mounting a filesystem with write access on a card write protected may involve a kernel crash.
 .It
-Suspend/Resume don't work under MMCCAM.
+Suspend/Resume do not work under MMCCAM.
 .El

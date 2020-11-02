@@ -1,8 +1,5 @@
 # Makefile for rtsx driver
 # CFLAGS="-ferror-limit=0"
-.if RTSX_INVERSION
-CFLAGS+= -DRTSX_INVERSION
-.endif
 .if RTSX_CAM
 CFLAGS+= -DMMCCAM
 .endif
