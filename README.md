@@ -27,7 +27,7 @@ kldload rtsx
 
 - `sysctl dev.rtsx.0.debug=1` some debugging informations.
 
-- `sysctl debug.bootverbose=1` verbose debuging informations.
+- `sysctl debug.bootverbose=1` verbose debugging informations.
 
 #### HISTORY:
 
