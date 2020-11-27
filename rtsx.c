@@ -3596,6 +3596,7 @@ rtsx_attach(device_t dev)
 	sc->rtsx_req = NULL;
 	sc->rtsx_timeout = 10;
 	sc->rtsx_read_only = 0;
+	sc->rtsx_inversion = 0;
 	sc->rtsx_force_timing = 0;
 	sc->rtsx_debug = 0;
 	sc->rtsx_read_count = 0;

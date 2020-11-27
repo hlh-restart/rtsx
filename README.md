@@ -43,6 +43,7 @@ kldload rtsx
  - patch for RTS525A from Lutz Bichler <Lutz.Bichler@gmail.com>
  - add read-only detection
  - add suspend and resume (at least on Acer Aspire E 15 E5-576-77W6)
+ - committed to head (FreeBSD 13.0-CURRENT) by revision [367998](https://svnweb.freebsd.org/base?view=revision&revision=367998).
 
 #### TODO:
 
