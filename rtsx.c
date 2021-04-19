@@ -166,7 +166,7 @@ struct rtsx_softc {
 #define	RTSX_RTL8411		0x5289
 #define	RTSX_RTL8411B		0x5287
 
-#define	RTSX_VERSION		"2.0c"
+#define	RTSX_VERSION		"2.0d"
 
 static const struct rtsx_device {
 	uint16_t	vendor_id;
@@ -183,6 +183,17 @@ static const struct rtsx_device {
 	{ RTSX_REALTEK,	RTSX_RTL8411,	RTSX_VERSION " Realtek RTL8411 PCI MMC/SD Card Reader"},
 	{ RTSX_REALTEK,	RTSX_RTL8411B,	RTSX_VERSION " Realtek RTL8411B PCI MMC/SD Card Reader"},
 	{ 0, 		0,		NULL}
+};
+
+static const struct rtsx_inversion_model {
+	char	*maker;
+	char	*family;
+	char	*product;
+} rtsx_inversion_models[] = {
+	{ "Hewlett-Packard",	"103C_5336AN G=N L=BUS B=HP S=ELI",	"HP EliteBook 820 G2"},
+	{ "LENOVO",		"ThinkPad P50s",			"20FLCTO1WW"},
+	{ "LENOVO",		"ThinkPad T470p",			"20J7S0PM00"},
+	{ NULL,			NULL,					NULL}
 };
 
 static int	rtsx_dma_alloc(struct rtsx_softc *sc);
@@ -3587,6 +3598,10 @@ rtsx_attach(device_t dev)
 	int			msi_count = 1;
 	uint32_t		sdio_cfg;
 	int			error;
+	char			*maker;
+	char			*family;
+	char			*product;
+	int			i;
 
 	if (bootverbose)
 		device_printf(dev, "Attach - Vendor ID: 0x%x - Device ID: 0x%x\n",
@@ -3601,6 +3616,20 @@ rtsx_attach(device_t dev)
 	sc->rtsx_debug = 0;
 	sc->rtsx_read_count = 0;
 	sc->rtsx_write_count = 0;
+
+	maker = kern_getenv("smbios.system.maker");
+	family = kern_getenv("smbios.system.family");
+	product = kern_getenv("smbios.system.product");
+	for (i = 0; rtsx_inversion_models[i].maker != NULL; i++) {
+		if (strcmp(rtsx_inversion_models[i].maker, maker) == 0 &&
+		    strcmp(rtsx_inversion_models[i].family, family) == 0 &&
+		    strcmp(rtsx_inversion_models[i].product, product) == 0) {
+			device_printf(dev, "Inversion activated for %s/%s/%s, see BUG in rtsx(4)\n", maker, family, product);
+			device_printf(dev, "If a card is detected without an SD card present,"
+				      " add dev.rtsx.0.inversion=0 in loader.conf(5)\n");
+			sc->rtsx_inversion = 1;
+		}
+	}
 
 	RTSX_LOCK_INIT(sc);
 
