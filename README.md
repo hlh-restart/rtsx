@@ -51,21 +51,21 @@ kldload rtsx
 
 #### TESTED ON:
 
- - RTS5209 under head (Lenovo ThinkPad L520, Packard Bell EN LV44HC i3-2328M)
- - RTS5227 under stable/11, releng/12.1 and head
-   (HP ProBook 430 g2, HP Elitebook 820 G2, HP EliteBook 840 G3, Lenovo ThinkPad
-   S440/T450/T450s/X270/yoga 1, Fujitsu H730)
- - RTS5229 under releng/12.1 and head (Lenovo IdeaPad 120S-14IAP, ASUS GL553VE)
- - RTS522A under releng/12.1 and head
-   (Intel NUC8i5BE, ThinkPad P50s, ThinkPad T470p, Thinkpad x260)
+ - RTS5209 under releng/13.0 (Lenovo ThinkPad L520, Packard Bell EN LV44HC i3-2328M)
+ - RTS5227 under stable/11, releng/12.1 and releng/13.0
+   (HP ProBook 430 g2, HP Elitebook 820 G2, Lenovo ThinkPad S440/T450/T450s/X270/yoga 1,
+   Fujitsu H730)
+ - RTS5229 under releng/12.1 and releng/13.0 (Lenovo IdeaPad 120S-14IAP, ASUS GL553VE)
+ - RTS522A under releng/12.1 and releng/13.0
+   (Intel NUC8i5BE, ThinkPad P50s, ThinkPad T470p, Thinkpad x260, HP EliteBook 840 G3)
  - RTS525A under releng/12.1 (Dell Latitude E5570, Dell XPS 13 - model 9360)
- - RTL8411B under stable/12 and head
+ - RTL8411B under stable/12 and releng/13.0
    (Acer Aspire E 15 E5-576-77W6, ACER ASPIRE 5 A515-51G-C97B)
 
 #### KNOWN BUGS:
  - The timeouts experienced during card insert and during I/O are solved in version 1.0g.
- - RTS522A on Lenovo P50s and Lenovo T470p, RTS5227 on HP Elitebook 820 G2, card detection
-   and read-only switch are reversed.
+ - RTS522A on Lenovo P50s, Lenovo T470p and HP EliteBook 840 G3,
+   RTS5227 on HP Elitebook 820 G2, card detection and read-only switch are reversed.
    To adapt the driver add in loader.conf(5) ```dev.rtsx.0.inversion=1```.
  - Mounting a filesystem with write access on a card write protected may involve a kernel crash.
  - Suspend/Resume do not work under MMCCAM.
