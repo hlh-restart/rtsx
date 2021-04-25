@@ -166,7 +166,7 @@ struct rtsx_softc {
 #define	RTSX_RTL8411		0x5289
 #define	RTSX_RTL8411B		0x5287
 
-#define	RTSX_VERSION		"2.0d"
+#define	RTSX_VERSION		"2.0e"
 
 static const struct rtsx_device {
 	uint16_t	vendor_id;
@@ -191,6 +191,7 @@ static const struct rtsx_inversion_model {
 	char	*product;
 } rtsx_inversion_models[] = {
 	{ "Hewlett-Packard",	"103C_5336AN G=N L=BUS B=HP S=ELI",	"HP EliteBook 820 G2"},
+	{ "HP",			"103C_5336AN HP EliteBook",		"HP EliteBook 840 G3"},
 	{ "LENOVO",		"ThinkPad P50s",			"20FLCTO1WW"},
 	{ "LENOVO",		"ThinkPad T470p",			"20J7S0PM00"},
 	{ NULL,			NULL,					NULL}
