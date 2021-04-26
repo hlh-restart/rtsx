@@ -64,8 +64,7 @@ kldload rtsx
 
 #### KNOWN BUGS:
  - The timeouts experienced during card insert and during I/O are solved in version 1.0g.
- - RTS522A on Lenovo P50s, Lenovo T470p and HP EliteBook 840 G3,
-   RTS5227 on HP Elitebook 820 G2, card detection and read-only switch are reversed.
+ - RTS522A on Lenovo P50s and Lenovo T470p, card detection and read-only switch are reversed.
    To adapt the driver add in loader.conf(5) ```dev.rtsx.0.inversion=1```.
  - Mounting a filesystem with write access on a card write protected may involve a kernel crash.
  - Suspend/Resume do not work under MMCCAM.
