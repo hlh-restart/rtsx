@@ -186,6 +186,7 @@ static const struct rtsx_device {
 	{ 0, 		0,		NULL}
 };
 
+/* See `kenv | grep smbios.system` */
 static const struct rtsx_inversion_model {
 	char	*maker;
 	char	*family;
