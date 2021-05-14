@@ -91,7 +91,6 @@ struct rtsx_softc {
 	void		(*rtsx_intr_trans_ko)(struct rtsx_softc *sc);
 						/* function to call if transfer fail */
 
-	struct taskqueue *rtsx_taskq;		/* rtsx taskqueue */
 	struct timeout_task
 			rtsx_card_insert_task;	/* card insert delayed task */
 	struct task	rtsx_card_remove_task;	/* card remove task */
@@ -170,7 +169,7 @@ struct rtsx_softc {
 #define	RTSX_RTL8411		0x5289
 #define	RTSX_RTL8411B		0x5287
 
-#define	RTSX_VERSION		"2.0g"
+#define	RTSX_VERSION		"2.0h"
 
 static const struct rtsx_device {
 	uint16_t	vendor_id;
@@ -631,10 +630,10 @@ rtsx_handle_card_present(struct rtsx_softc *sc)
 		 * (sometimes the card detect pin stabilizes
 		 * before the other pins have made good contact).
 		 */
-		taskqueue_enqueue_timeout(sc->rtsx_taskq,
+		taskqueue_enqueue_timeout(taskqueue_swi_giant,
 					  &sc->rtsx_card_insert_task, -hz);
 	} else if (was_present && !is_present) {
-		taskqueue_enqueue(sc->rtsx_taskq, &sc->rtsx_card_remove_task);
+		taskqueue_enqueue(taskqueue_swi_giant, &sc->rtsx_card_remove_task);
 	}
 }
 
@@ -3716,14 +3715,7 @@ rtsx_attach(device_t dev)
 		goto destroy_rtsx_irq;
 	}
 
-	sc->rtsx_taskq = taskqueue_create("rtsx_taskq", M_WAITOK,
-					  taskqueue_thread_enqueue, &sc->rtsx_taskq);
-	error = taskqueue_start_threads(&sc->rtsx_taskq, 1, 0, "rtsx_taskq");
-	if (error) {
-		device_printf(dev, "Can't start taskq thread [%d]!\n", error);
-		goto destroy_rtsx_taskq;
-	}
-	TIMEOUT_TASK_INIT(sc->rtsx_taskq, &sc->rtsx_card_insert_task, 0,
+	TIMEOUT_TASK_INIT(taskqueue_swi_giant, &sc->rtsx_card_insert_task, 0,
 			  rtsx_card_task, sc);
 	TASK_INIT(&sc->rtsx_card_remove_task, 0, rtsx_card_task, sc);
 
@@ -3762,8 +3754,8 @@ rtsx_attach(device_t dev)
 
 	/*
 	 * Schedule a card detection as we won't get an interrupt
-	 * if the card is inserted when we attach. We wait half a
-	 * second to allow for a "spontaneous" interrupt which may
+	 * if the card is inserted when we attach. We wait a quarter
+	 * of a second to allow for a "spontaneous" interrupt which may
 	 * change the card presence state. This delay avoid a panic
 	 * on some configuration (e.g. Lenovo T540p).
 	 */
@@ -3779,9 +3771,6 @@ rtsx_attach(device_t dev)
 
 	return (0);
 
- destroy_rtsx_taskq:
-	taskqueue_drain_all(sc->rtsx_taskq);
-	taskqueue_free(sc->rtsx_taskq);
  destroy_rtsx_irq:
 	bus_teardown_intr(dev, sc->rtsx_irq_res, sc->rtsx_irq_cookie);
  destroy_rtsx_res:
@@ -3829,8 +3818,8 @@ rtsx_detach(device_t dev)
 	if (error)
 		return (error);
 
-	taskqueue_drain_all(sc->rtsx_taskq);
-	taskqueue_free(sc->rtsx_taskq);
+	taskqueue_drain_timeout(taskqueue_swi_giant, &sc->rtsx_card_insert_task);
+	taskqueue_drain(taskqueue_swi_giant, &sc->rtsx_card_remove_task);
 
 	/* Teardown the state in our softc created in our attach routine. */
 	rtsx_dma_free(sc);
