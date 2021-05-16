@@ -169,22 +169,22 @@ struct rtsx_softc {
 #define	RTSX_RTL8411		0x5289
 #define	RTSX_RTL8411B		0x5287
 
-#define	RTSX_VERSION		"2.0h"
+#define	RTSX_VERSION		"2.0i"
 
 static const struct rtsx_device {
 	uint16_t	vendor_id;
 	uint16_t	device_id;
 	const char	*desc;
 } rtsx_devices[] = {
-	{ RTSX_REALTEK,	RTSX_RTS5209,	RTSX_VERSION " Realtek RTS5209 PCI MMC/SD Card Reader"},
-	{ RTSX_REALTEK,	RTSX_RTS5227,	RTSX_VERSION " Realtek RTS5227 PCI MMC/SD Card Reader"},
-	{ RTSX_REALTEK,	RTSX_RTS5229,	RTSX_VERSION " Realtek RTS5229 PCI MMC/SD Card Reader"},
-	{ RTSX_REALTEK,	RTSX_RTS522A,	RTSX_VERSION " Realtek RTS522A PCI MMC/SD Card Reader"},
-	{ RTSX_REALTEK,	RTSX_RTS525A,	RTSX_VERSION " Realtek RTS525A PCI MMC/SD Card Reader"},
-	{ RTSX_REALTEK,	RTSX_RTS5249,	RTSX_VERSION " Realtek RTS5249 PCI MMC/SD Card Reader"},
-	{ RTSX_REALTEK,	RTSX_RTL8402,	RTSX_VERSION " Realtek RTL8402 PCI MMC/SD Card Reader"},
-	{ RTSX_REALTEK,	RTSX_RTL8411,	RTSX_VERSION " Realtek RTL8411 PCI MMC/SD Card Reader"},
-	{ RTSX_REALTEK,	RTSX_RTL8411B,	RTSX_VERSION " Realtek RTL8411B PCI MMC/SD Card Reader"},
+	{ RTSX_REALTEK,	RTSX_RTS5209,	RTSX_VERSION " Realtek RTS5209 PCIe MMC/SD Card Reader"},
+	{ RTSX_REALTEK,	RTSX_RTS5227,	RTSX_VERSION " Realtek RTS5227 PCIe MMC/SD Card Reader"},
+	{ RTSX_REALTEK,	RTSX_RTS5229,	RTSX_VERSION " Realtek RTS5229 PCIe MMC/SD Card Reader"},
+	{ RTSX_REALTEK,	RTSX_RTS522A,	RTSX_VERSION " Realtek RTS522A PCIe MMC/SD Card Reader"},
+	{ RTSX_REALTEK,	RTSX_RTS525A,	RTSX_VERSION " Realtek RTS525A PCIe MMC/SD Card Reader"},
+	{ RTSX_REALTEK,	RTSX_RTS5249,	RTSX_VERSION " Realtek RTS5249 PCIe MMC/SD Card Reader"},
+	{ RTSX_REALTEK,	RTSX_RTL8402,	RTSX_VERSION " Realtek RTL8402 PCIe MMC/SD Card Reader"},
+	{ RTSX_REALTEK,	RTSX_RTL8411,	RTSX_VERSION " Realtek RTL8411 PCIe MMC/SD Card Reader"},
+	{ RTSX_REALTEK,	RTSX_RTL8411B,	RTSX_VERSION " Realtek RTL8411B PCIe MMC/SD Card Reader"},
 	{ 0, 		0,		NULL}
 };
 
@@ -194,7 +194,6 @@ static const struct rtsx_inversion_model {
 	char	*family;
 	char	*product;
 } rtsx_inversion_models[] = {
-	{ "LENOVO",		"ThinkPad P50s",	"20FLCTO1WW"},
 	{ "LENOVO",		"ThinkPad T470p",	"20J7S0PM00"},
 	{ NULL,			NULL,			NULL}
 };
@@ -998,7 +997,7 @@ rtsx_init(struct rtsx_softc *sc)
 					    RTSX_PHY_REV_CLKREQ_DT_1_0 | RTSX_PHY_REV_STOP_CLKRD |
 					    RTSX_PHY_REV_STOP_CLKWR)))
 			return (error);
-		DELAY(10);
+		DELAY(1000);
 		if ((error = rtsx_write_phy(sc, RTSX_PHY_BPCR,
 					    RTSX_PHY_BPCR_IBRXSEL | RTSX_PHY_BPCR_IBTXSEL |
 					    RTSX_PHY_BPCR_IB_FILTER | RTSX_PHY_BPCR_CMIRROR_EN)))
@@ -1618,7 +1617,7 @@ rtsx_bus_power_on(struct rtsx_softc *sc)
 		RTSX_BITOP(sc, RTSX_CARD_PWR_CTL, RTSX_SD_PWR_MASK, RTSX_SD_PARTIAL_PWR_ON);
 		RTSX_BITOP(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_PWR_MASK, RTSX_LDO3318_VCC1);
 
-		DELAY(200);
+		DELAY(20000);
 
 		/* Full power. */
 		RTSX_BITOP(sc, RTSX_CARD_PWR_CTL, RTSX_SD_PWR_MASK, RTSX_SD_PWR_ON);
@@ -1646,7 +1645,7 @@ rtsx_bus_power_on(struct rtsx_softc *sc)
 		RTSX_BITOP(sc, RTSX_CARD_PWR_CTL, RTSX_SD_PWR_MASK, RTSX_SD_PARTIAL_PWR_ON);
 		RTSX_BITOP(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_PWR_MASK, RTSX_LDO3318_VCC1);
 
-		DELAY(200);
+		DELAY(5000);
 
 		/* Full power. */
 		RTSX_BITOP(sc, RTSX_CARD_PWR_CTL, RTSX_SD_PWR_MASK, RTSX_SD_PWR_ON);
@@ -3694,6 +3693,16 @@ rtsx_attach(device_t dev)
 	sc->rtsx_btag = rman_get_bustag(sc->rtsx_res);
 	sc->rtsx_bhandle = rman_get_bushandle(sc->rtsx_res);
 
+	TIMEOUT_TASK_INIT(taskqueue_swi_giant, &sc->rtsx_card_insert_task, 0,
+			  rtsx_card_task, sc);
+	TASK_INIT(&sc->rtsx_card_remove_task, 0, rtsx_card_task, sc);
+
+	/* Allocate two DMA buffers: a command buffer and a data buffer. */
+	error = rtsx_dma_alloc(sc);
+	if (error) {
+		goto destroy_rtsx_irq_res;
+	}
+
 	/* Activate the interrupt. */
 	error = bus_setup_intr(dev, sc->rtsx_irq_res, INTR_TYPE_MISC | INTR_MPSAFE,
 			       NULL, rtsx_intr, sc, &sc->rtsx_irq_cookie);
@@ -3708,16 +3717,6 @@ rtsx_attach(device_t dev)
 		    (sdio_cfg & RTSX_SDIOCFG_HAVE_SDIO))
 			sc->rtsx_flags |= RTSX_F_SDIO_SUPPORT;
 	}
-
-	/* Allocate two DMA buffers: a command buffer and a data buffer. */
-	error = rtsx_dma_alloc(sc);
-	if (error) {
-		goto destroy_rtsx_irq;
-	}
-
-	TIMEOUT_TASK_INIT(taskqueue_swi_giant, &sc->rtsx_card_insert_task, 0,
-			  rtsx_card_task, sc);
-	TASK_INIT(&sc->rtsx_card_remove_task, 0, rtsx_card_task, sc);
 
 #ifdef MMCCAM
 	sc->rtsx_ccb = NULL;
@@ -3776,6 +3775,7 @@ rtsx_attach(device_t dev)
  destroy_rtsx_res:
 	bus_release_resource(dev, SYS_RES_MEMORY, sc->rtsx_res_id,
 			     sc->rtsx_res);
+	rtsx_dma_free(sc);
  destroy_rtsx_irq_res:
 	callout_drain(&sc->rtsx_timeout_callout);
 	bus_release_resource(dev, SYS_RES_IRQ, sc->rtsx_irq_res_id,
