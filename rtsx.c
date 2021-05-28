@@ -3659,7 +3659,8 @@ rtsx_attach(device_t dev)
 	SYSCTL_ADD_U64(ctx, tree, OID_AUTO, "write_count", CTLFLAG_RD,
 		       &sc->rtsx_write_count, 0, "Count of write operations");
 
-	device_printf(dev, "We are running with inversion: %d\n", sc->rtsx_inversion);
+	if (bootverbose || sc->rtsx_debug)
+		device_printf(dev, "We are running with inversion: %d\n", sc->rtsx_inversion);
 
 	/* Allocate IRQ. */
 	sc->rtsx_irq_res_id = 0;
@@ -3699,9 +3700,8 @@ rtsx_attach(device_t dev)
 
 	/* Allocate two DMA buffers: a command buffer and a data buffer. */
 	error = rtsx_dma_alloc(sc);
-	if (error) {
+	if (error)
 		goto destroy_rtsx_irq_res;
-	}
 
 	/* Activate the interrupt. */
 	error = bus_setup_intr(dev, sc->rtsx_irq_res, INTR_TYPE_MISC | INTR_MPSAFE,
