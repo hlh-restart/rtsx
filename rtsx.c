@@ -3652,7 +3652,7 @@ rtsx_attach(device_t dev)
 		      &sc->rtsx_inversion, 0, "Inversion of card detection and read only status");
 	SYSCTL_ADD_U8(ctx, tree, OID_AUTO, "force_timing", CTLFLAG_RW,
 		      &sc->rtsx_force_timing, 0, "Force bus_timing_uhs_sdr50");
-	SYSCTL_ADD_U8(ctx, tree, OID_AUTO, "debug", CTLFLAG_RW,
+	SYSCTL_ADD_U8(ctx, tree, OID_AUTO, "debug", CTLFLAG_RWTUN,
 		      &sc->rtsx_debug, 0, "Debugging flag");
 	SYSCTL_ADD_U64(ctx, tree, OID_AUTO, "read_count", CTLFLAG_RD,
 		       &sc->rtsx_read_count, 0, "Count of read operations");
