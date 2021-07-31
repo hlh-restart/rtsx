@@ -2912,6 +2912,7 @@ rtsx_cam_action(struct cam_sim *sim, union ccb *ccb)
 		cpi->ccb_h.status = CAM_REQ_CMP;
 		break;
 	}
+	case XPT_MMC_GET_TRAN_SETTINGS:
 	case XPT_GET_TRAN_SETTINGS:
 	{
 		struct ccb_trans_settings *cts = &ccb->cts;
@@ -2936,6 +2937,7 @@ rtsx_cam_action(struct cam_sim *sim, union ccb *ccb)
 		ccb->ccb_h.status = CAM_REQ_CMP;
 		break;
 	}
+	case XPT_MMC_SET_TRAN_SETTINGS:
 	case XPT_SET_TRAN_SETTINGS:
 		if (bootverbose || sc->rtsx_debug)
 			device_printf(sc->rtsx_dev, "rtsx_cam_action() - got XPT_SET_TRAN_SETTINGS\n");
