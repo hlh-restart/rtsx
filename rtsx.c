@@ -84,8 +84,8 @@ struct rtsx_softc {
 	struct resource *rtsx_irq_res;		/* bus IRQ resource */
 	void		*rtsx_irq_cookie;	/* bus IRQ resource cookie */
 	struct callout	rtsx_timeout_callout;	/* callout for timeout */
-	int		rtsx_timeout1;		/* interrupt timeout for setup commands */
-	int		rtsx_timeout2;		/* interrupt timeout for I/O commands */
+	int		rtsx_timeout_cmd;	/* interrupt timeout for setup commands */
+	int		rtsx_timeout_io;	/* interrupt timeout for I/O commands */
 	void		(*rtsx_intr_trans_ok)(struct rtsx_softc *sc);
 						/* function to call if transfer succeed */
 	void		(*rtsx_intr_trans_ko)(struct rtsx_softc *sc);
@@ -1996,7 +1996,7 @@ rtsx_sd_tuning_rx_cmd_wait(struct rtsx_softc *sc, struct mmc_command *cmd)
 
 	status = sc->rtsx_intr_status & mask;
 	while (status == 0) {
-		if (msleep(&sc->rtsx_intr_status, &sc->rtsx_mtx, 0, "rtsxintr", sc->rtsx_timeout1) == EWOULDBLOCK) {
+		if (msleep(&sc->rtsx_intr_status, &sc->rtsx_mtx, 0, "rtsxintr", sc->rtsx_timeout_cmd) == EWOULDBLOCK) {
 			cmd->error = MMC_ERR_TIMEOUT;
 			return (MMC_ERR_TIMEOUT);
 		}
@@ -3489,13 +3489,13 @@ rtsx_mmcbr_request(device_t bus, device_t child __unused, struct mmc_request *re
 
 	if (cmd->data == NULL) {
 		DELAY(200);
-		timeout = sc->rtsx_timeout1;
+		timeout = sc->rtsx_timeout_cmd;
 		error = rtsx_send_req(sc, cmd);
 	} else if (cmd->data->len <= 512) {
-		timeout = sc->rtsx_timeout2;
+		timeout = sc->rtsx_timeout_io;
 		error = rtsx_xfer_short(sc, cmd);
 	} else {
-		timeout = sc->rtsx_timeout2;
+		timeout = sc->rtsx_timeout_io;
 		error = rtsx_xfer(sc, cmd);
 	}
  end:
@@ -3617,8 +3617,8 @@ rtsx_attach(device_t dev)
 
 	sc->rtsx_dev = dev;
 	sc->rtsx_req = NULL;
-	sc->rtsx_timeout1 = 1;
-	sc->rtsx_timeout2 = 10;
+	sc->rtsx_timeout_cmd = 1;
+	sc->rtsx_timeout_io = 10;
 	sc->rtsx_read_only = 0;
 	sc->rtsx_inversion = 0;
 	sc->rtsx_force_timing = 0;
@@ -3644,10 +3644,10 @@ rtsx_attach(device_t dev)
 
 	ctx = device_get_sysctl_ctx(dev);
 	tree = SYSCTL_CHILDREN(device_get_sysctl_tree(dev));
-	SYSCTL_ADD_INT(ctx, tree, OID_AUTO, "req_timeout2", CTLFLAG_RW,
-		       &sc->rtsx_timeout2, 0, "Request timeout for I/O commands in seconds");
-	SYSCTL_ADD_INT(ctx, tree, OID_AUTO, "req_timeout1", CTLFLAG_RW,
-		       &sc->rtsx_timeout1, 0, "Request timeout for setup commands in seconds");
+	SYSCTL_ADD_INT(ctx, tree, OID_AUTO, "timeout_io", CTLFLAG_RW,
+		       &sc->rtsx_timeout_io, 0, "Request timeout for I/O commands in seconds");
+	SYSCTL_ADD_INT(ctx, tree, OID_AUTO, "timeout_cmd", CTLFLAG_RW,
+		       &sc->rtsx_timeout_cmd, 0, "Request timeout for setup commands in seconds");
 	SYSCTL_ADD_U8(ctx, tree, OID_AUTO, "read_only", CTLFLAG_RD,
 		      &sc->rtsx_read_only, 0, "Card is write protected");
 	SYSCTL_ADD_U8(ctx, tree, OID_AUTO, "inversion", CTLFLAG_RWTUN,
