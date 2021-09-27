@@ -3780,7 +3780,7 @@ static device_method_t rtsx_methods[] = {
 	DEVMETHOD(mmc_sim_set_tran_settings,	rtsx_set_tran_settings),
 	DEVMETHOD(mmc_sim_cam_request,		rtsx_cam_request),
 #endif /* MMCCAM */
-	
+
 	DEVMETHOD_END
 };
 
