@@ -619,7 +619,7 @@ rtsx_handle_card_present(struct rtsx_softc *sc)
 	was_present = sc->rtsx_cam_status;
 #else  /* !MMCCAM */
 	was_present = sc->rtsx_mmc_dev != NULL;
-#endif /* !MMCCAM */
+#endif /* MMCCAM */
 	is_present = rtsx_is_card_present(sc);
 	if (is_present)
 		device_printf(sc->rtsx_dev, "Card present\n");
@@ -654,7 +654,7 @@ rtsx_card_task(void *arg, int pending __unused)
 		if (sc->rtsx_cam_status == 0) {
 #else  /* !MMCCAM */
 		if (sc->rtsx_mmc_dev == NULL) {
-#endif /* !MMCCAM */
+#endif /* MMCCAM */
 			if (bootverbose)
 				device_printf(sc->rtsx_dev, "Card inserted\n");
 
@@ -672,7 +672,7 @@ rtsx_card_task(void *arg, int pending __unused)
 				device_set_ivars(sc->rtsx_mmc_dev, sc);
 				device_probe_and_attach(sc->rtsx_mmc_dev);
 			}
-#endif /* !MMCCAM */
+#endif /* MMCCAM */
 		}
 	} else {
 		sc->rtsx_flags &= ~RTSX_F_CARD_PRESENT;
@@ -681,7 +681,7 @@ rtsx_card_task(void *arg, int pending __unused)
 		if (sc->rtsx_cam_status != 0) {
 #else  /* !MMCCAM */
 		if (sc->rtsx_mmc_dev != NULL) {
-#endif /* !MMCCAM */
+#endif /* MMCCAM */
 			if (bootverbose)
 				device_printf(sc->rtsx_dev, "Card removed\n");
 
@@ -695,7 +695,7 @@ rtsx_card_task(void *arg, int pending __unused)
 			if (device_delete_child(sc->rtsx_dev, sc->rtsx_mmc_dev))
 				device_printf(sc->rtsx_dev, "Detaching MMC bus failed\n");
 			sc->rtsx_mmc_dev = NULL;
-#endif /* !MMCCAM */
+#endif /* MMCCAM */
 		}
 	}
 }
@@ -2228,7 +2228,7 @@ rtsx_req_done(struct rtsx_softc *sc)
 	xpt_done(ccb);
 #else  /* !MMCCAM */
 	req->done(req);
-#endif /* !MMCCAM */
+#endif /* MMCCAM */
 }
 
 /*
@@ -3729,7 +3729,7 @@ rtsx_suspend(device_t dev)
 		device_printf(dev, "Request in progress: CMD%u, rtsr_intr_status: 0x%08x\n",
 			      sc->rtsx_req->cmd->opcode, sc->rtsx_intr_status);
 	}
-#endif /* !MMCCAM */
+#endif /* MMCCAM */
 
 	bus_generic_suspend(dev);
 
