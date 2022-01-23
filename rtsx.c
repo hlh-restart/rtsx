@@ -169,7 +169,7 @@ struct rtsx_softc {
 #define	RTSX_RTL8411		0x5289
 #define	RTSX_RTL8411B		0x5287
 
-#define	RTSX_VERSION		"2.0k"
+#define	RTSX_VERSION		"2.0l"
 
 static const struct rtsx_device {
 	uint16_t	vendor_id;
@@ -2912,7 +2912,9 @@ rtsx_cam_action(struct cam_sim *sim, union ccb *ccb)
 		cpi->ccb_h.status = CAM_REQ_CMP;
 		break;
 	}
+#if  __FreeBSD_version > 1300512
 	case XPT_MMC_GET_TRAN_SETTINGS:
+#endif
 	case XPT_GET_TRAN_SETTINGS:
 	{
 		struct ccb_trans_settings *cts = &ccb->cts;
@@ -2929,7 +2931,7 @@ rtsx_cam_action(struct cam_sim *sim, union ccb *ccb)
 		cts->proto_specific.mmc.host_f_min = sc->rtsx_host.f_min;
 		cts->proto_specific.mmc.host_f_max = sc->rtsx_host.f_max;
 		cts->proto_specific.mmc.host_caps = sc->rtsx_host.caps;
-#if  __FreeBSD__ > 12
+#if  __FreeBSD_version >= 1300000
 		cts->proto_specific.mmc.host_max_data = RTSX_DMA_DATA_BUFSIZE / MMC_SECTOR_SIZE;
 #endif
 		memcpy(&cts->proto_specific.mmc.ios, &sc->rtsx_host.ios, sizeof(struct mmc_ios));
@@ -2937,7 +2939,9 @@ rtsx_cam_action(struct cam_sim *sim, union ccb *ccb)
 		ccb->ccb_h.status = CAM_REQ_CMP;
 		break;
 	}
+#if  __FreeBSD_version > 1300512
 	case XPT_MMC_SET_TRAN_SETTINGS:
+#endif
 	case XPT_SET_TRAN_SETTINGS:
 		if (bootverbose || sc->rtsx_debug)
 			device_printf(sc->rtsx_dev, "rtsx_cam_action() - got XPT_SET_TRAN_SETTINGS\n");
