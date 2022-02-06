@@ -718,7 +718,6 @@ rtsx_is_card_present(struct rtsx_softc *sc)
 static int
 rtsx_init(struct rtsx_softc *sc)
 {
-	bool	rtsx_init_debug = false;
 	uint8_t	version;
 	uint8_t	val;
 	int	error;
@@ -784,10 +783,10 @@ rtsx_init(struct rtsx_softc *sc)
 		if (!(reg & 0x80)) {
 			sc->rtsx_card_drive_sel = (reg >> 8) & 0x3F;
 			sc->rtsx_sd30_drive_sel_3v3 = reg & 0x07;
-		} else if (bootverbose || rtsx_init_debug) {
+		} else if (bootverbose || sc->rtsx_debug) {
 			device_printf(sc->rtsx_dev, "pci_read_config() error - reg: 0x%08x\n", reg);
 		}
-		if (bootverbose || rtsx_init_debug)
+		if (bootverbose || sc->rtsx_debug)
 			device_printf(sc->rtsx_dev, "card_drive_sel: 0x%02x, sd30_drive_sel_3v3: 0x%02x\n",
 				      sc->rtsx_card_drive_sel, sc->rtsx_sd30_drive_sel_3v3);
 		break;
@@ -802,10 +801,10 @@ rtsx_init(struct rtsx_softc *sc)
 			sc->rtsx_sd30_drive_sel_3v3 = (reg >> 5) & 0x03;
 			if (reg & 0x4000)
 				sc->rtsx_flags |= RTSX_F_REVERSE_SOCKET;
-		} else if (bootverbose || rtsx_init_debug) {
+		} else if (bootverbose || sc->rtsx_debug) {
 			device_printf(sc->rtsx_dev, "pci_read_config() error - reg: 0x%08x\n", reg);
 		}
-		if (bootverbose || rtsx_init_debug)
+		if (bootverbose || sc->rtsx_debug)
 			device_printf(sc->rtsx_dev,
 				      "card_drive_sel: 0x%02x, sd30_drive_sel_3v3: 0x%02x, reverse_socket is %s\n",
 				      sc->rtsx_card_drive_sel, sc->rtsx_sd30_drive_sel_3v3,
@@ -819,10 +818,10 @@ rtsx_init(struct rtsx_softc *sc)
 			sc->rtsx_card_drive_sel |= ((reg >> 25) & 0x01) << 6;
 			reg = pci_read_config(sc->rtsx_dev, RTSX_PCR_SETTING_REG2, 4);
 			sc->rtsx_sd30_drive_sel_3v3 = rtsx_map_sd_drive((reg >> 5) & 0x03);
-		} else if (bootverbose || rtsx_init_debug) {
+		} else if (bootverbose || sc->rtsx_debug) {
 			device_printf(sc->rtsx_dev, "pci_read_config() error - reg: 0x%08x\n", reg);
 		}
-		if (bootverbose || rtsx_init_debug)
+		if (bootverbose || sc->rtsx_debug)
 			device_printf(sc->rtsx_dev, "card_drive_sel: 0x%02x, sd30_drive_sel_3v3: 0x%02x\n",
 				      sc->rtsx_card_drive_sel, sc->rtsx_sd30_drive_sel_3v3);
 		break;
@@ -838,10 +837,10 @@ rtsx_init(struct rtsx_softc *sc)
 			sc->rtsx_sd30_drive_sel_3v3 = (reg >> 5) & 0x03;
 			if (reg & 0x4000)
 				sc->rtsx_flags |= RTSX_F_REVERSE_SOCKET;
-		} else if (bootverbose || rtsx_init_debug) {
+		} else if (bootverbose || sc->rtsx_debug) {
 			device_printf(sc->rtsx_dev, "pci_read_config() error - reg: 0x%08x\n", reg);
 		}
-		if (bootverbose || rtsx_init_debug)
+		if (bootverbose || sc->rtsx_debug)
 			device_printf(sc->rtsx_dev,
 				      "card_drive_sel = 0x%02x, sd30_drive_sel_3v3: 0x%02x, reverse_socket is %s\n",
 				      sc->rtsx_card_drive_sel, sc->rtsx_sd30_drive_sel_3v3,
@@ -857,10 +856,10 @@ rtsx_init(struct rtsx_softc *sc)
 			sc->rtsx_card_drive_sel |= ((reg1 >> 25) & 0x01) << 6;
 			reg3 = pci_read_config(sc->rtsx_dev, RTSX_PCR_SETTING_REG3, 1);
 			sc->rtsx_sd30_drive_sel_3v3 = (reg3 >> 5) & 0x07;
-		} else if (bootverbose || rtsx_init_debug) {
+		} else if (bootverbose || sc->rtsx_debug) {
 			device_printf(sc->rtsx_dev, "pci_read_config() error - reg1: 0x%08x\n", reg1);
 		}
-		if (bootverbose || rtsx_init_debug)
+		if (bootverbose || sc->rtsx_debug)
 			device_printf(sc->rtsx_dev,
 				      "card_drive_sel: 0x%02x, sd30_drive_sel_3v3: 0x%02x\n",
 				      sc->rtsx_card_drive_sel, sc->rtsx_sd30_drive_sel_3v3);
@@ -871,17 +870,17 @@ rtsx_init(struct rtsx_softc *sc)
 		reg = pci_read_config(sc->rtsx_dev, RTSX_PCR_SETTING_REG1, 4);
 		if (!(reg & 0x1000000)) {
 			sc->rtsx_sd30_drive_sel_3v3 = rtsx_map_sd_drive(reg & 0x03);
-		} else if (bootverbose || rtsx_init_debug) {
+		} else if (bootverbose || sc->rtsx_debug) {
 			device_printf(sc->rtsx_dev, "pci_read_config() error - reg: 0x%08x\n", reg);
 		}
-		if (bootverbose || rtsx_init_debug)
+		if (bootverbose || sc->rtsx_debug)
 			device_printf(sc->rtsx_dev,
 				      "card_drive_sel: 0x%02x, sd30_drive_sel_3v3: 0x%02x\n",
 				      sc->rtsx_card_drive_sel, sc->rtsx_sd30_drive_sel_3v3);
 		break;
 	}
 
-	if (bootverbose || rtsx_init_debug)
+	if (bootverbose || sc->rtsx_debug)
 		device_printf(sc->rtsx_dev, "rtsx_init() rtsx_flags: 0x%04x\n", sc->rtsx_flags);
 
 	/* Enable interrupts. */
