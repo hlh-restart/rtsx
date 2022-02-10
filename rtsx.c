@@ -132,7 +132,8 @@ struct rtsx_softc {
 	uint8_t		rtsx_read_only;		/* card read only status */
 	uint8_t		rtsx_inversion;		/* inversion of card detection and read only status */
 	uint8_t		rtsx_force_timing;	/* force bus_timing_uhs_sdr50 */
-	uint8_t		rtsx_debug;		/* print debugging */
+	uint8_t		rtsx_debug;		/* some general debugging */
+	uint8_t		rtsx_trace;		/* trace SD command */
 #ifdef MMCCAM
 	uint8_t		rtsx_cam_status;	/* CAM status - 1 if card in use */
 #endif /* MMCCAM */
@@ -558,7 +559,7 @@ rtsx_intr(void *arg)
 	status = READ4(sc, RTSX_BIPR);	/* read Bus Interrupt Pending Register */
 	sc->rtsx_intr_status = status;
 
-	if (bootverbose)
+	if (sc->rtsx_trace)
 		device_printf(sc->rtsx_dev, "Interrupt handler - enabled: 0x%08x, status: 0x%08x\n", enabled, status);
 
 	/* Ack interrupts. */
@@ -658,7 +659,7 @@ rtsx_card_task(void *arg, int pending __unused)
 #else  /* !MMCCAM */
 		if (sc->rtsx_mmc_dev == NULL) {
 #endif /* MMCCAM */
-			if (bootverbose)
+			if (sc->rtsx_debug)
 				device_printf(sc->rtsx_dev, "Card inserted\n");
 
 			sc->rtsx_read_count = sc->rtsx_write_count = 0;
@@ -685,7 +686,7 @@ rtsx_card_task(void *arg, int pending __unused)
 #else  /* !MMCCAM */
 		if (sc->rtsx_mmc_dev != NULL) {
 #endif /* MMCCAM */
-			if (bootverbose)
+			if (sc->rtsx_debug)
 				device_printf(sc->rtsx_dev, "Card removed\n");
 
 			if (sc->rtsx_debug)
@@ -1436,7 +1437,7 @@ rtsx_write_phy(struct rtsx_softc *sc, uint8_t addr, uint16_t val)
 static int
 rtsx_bus_power_off(struct rtsx_softc *sc)
 {
-	if (bootverbose || sc->rtsx_debug)
+	if (sc->rtsx_debug)
 		device_printf(sc->rtsx_dev, "rtsx_bus_power_off()\n");
 
 	/* Disable SD clock. */
@@ -1536,7 +1537,7 @@ rtsx_bus_power_off(struct rtsx_softc *sc)
 static int
 rtsx_bus_power_on(struct rtsx_softc *sc)
 {
-	if (bootverbose || sc->rtsx_debug)
+	if (sc->rtsx_debug)
 		device_printf(sc->rtsx_dev, "rtsx_bus_power_on()\n");
 
 	/* Select SD card. */
@@ -1727,7 +1728,7 @@ rtsx_set_bus_width(struct rtsx_softc *sc, enum mmc_bus_width width)
 	}
 	RTSX_BITOP(sc, RTSX_SD_CFG1, RTSX_BUS_WIDTH_MASK, bus_width);
 
-	if (bootverbose || sc->rtsx_debug) {
+	if (sc->rtsx_debug) {
 		char *busw[] = {
 				"1 bit",
 				"4 bits",
@@ -1746,7 +1747,7 @@ rtsx_set_sd_timing(struct rtsx_softc *sc, enum mmc_bus_timing timing)
 		sc->rtsx_ios_timing = timing;
 	}
 
-	if (bootverbose || sc->rtsx_debug)
+	if (sc->rtsx_debug)
 		device_printf(sc->rtsx_dev, "rtsx_set_sd_timing(%u)\n", timing);
 
 	switch (timing) {
@@ -1800,7 +1801,7 @@ rtsx_set_sd_clock(struct rtsx_softc *sc, uint32_t freq)
 	uint8_t	clk_divider, n, div, mcu;
 	int	error = 0;
 
-	if (bootverbose || sc->rtsx_debug)
+	if (sc->rtsx_debug)
 		device_printf(sc->rtsx_dev, "rtsx_set_sd_clock(%u)\n", freq);
 
 	if (freq == RTSX_SDCLK_OFF) {
@@ -1887,7 +1888,7 @@ rtsx_stop_sd_clock(struct rtsx_softc *sc)
 static int
 rtsx_switch_sd_clock(struct rtsx_softc *sc, uint8_t clk, uint8_t n, uint8_t div, uint8_t mcu)
 {
-	if (bootverbose || sc->rtsx_debug) {
+	if (sc->rtsx_debug) {
 		device_printf(sc->rtsx_dev, "rtsx_switch_sd_clock() - discovery-mode is %s, ssc_depth: %d\n",
 			      (sc->rtsx_discovery_mode) ? "true" : "false", sc->rtsx_ssc_depth);
 		device_printf(sc->rtsx_dev, "rtsx_switch_sd_clock() - clk: %d, n: %d, div: %d, mcu: %d\n",
@@ -1917,7 +1918,7 @@ rtsx_switch_sd_clock(struct rtsx_softc *sc, uint8_t clk, uint8_t n, uint8_t div,
 static void
 rtsx_sd_change_tx_phase(struct rtsx_softc *sc, uint8_t sample_point)
 {
-	if (bootverbose || sc->rtsx_debug)
+	if (sc->rtsx_debug)
 		device_printf(sc->rtsx_dev, "rtsx_sd_change_tx_phase() - sample_point: %d\n", sample_point);
 
 	rtsx_write(sc, RTSX_CLK_CTL, RTSX_CHANGE_CLK, RTSX_CHANGE_CLK);
@@ -1931,7 +1932,7 @@ rtsx_sd_change_tx_phase(struct rtsx_softc *sc, uint8_t sample_point)
 static void
 rtsx_sd_change_rx_phase(struct rtsx_softc *sc, uint8_t sample_point)
 {
-	if (bootverbose || sc->rtsx_debug == 2)
+	if (sc->rtsx_debug == 2)
 		device_printf(sc->rtsx_dev, "rtsx_sd_change_rx_phase() - sample_point: %d\n", sample_point);
 
 	rtsx_write(sc, RTSX_CLK_CTL, RTSX_CHANGE_CLK, RTSX_CHANGE_CLK);
@@ -1998,7 +1999,7 @@ rtsx_sd_tuning_rx_cmd(struct rtsx_softc *sc, uint8_t sample_point)
 	error = rtsx_sd_tuning_rx_cmd_wait(sc, &cmd);
 
 	if (error) {
-		if (bootverbose || sc->rtsx_debug == 2)
+		if (sc->rtsx_debug == 2)
 			device_printf(sc->rtsx_dev, "rtsx_sd_tuning_rx_cmd() - error: %d\n", error);
 		rtsx_sd_wait_data_idle(sc);
 		rtsx_clear_error(sc);
@@ -2067,7 +2068,7 @@ rtsx_sd_search_final_rx_phase(struct rtsx_softc *sc, uint32_t phase_map)
 
 	final_phase = (start_final + len_final / 2) % RTSX_RX_PHASE_MAX;
 
-	if (bootverbose || sc->rtsx_debug)
+	if (sc->rtsx_debug)
 		device_printf(sc->rtsx_dev,
 			      "rtsx_sd_search_final_rx_phase() - phase_map: %x, start_final: %d, len_final: %d, final_phase: %d\n",
 			      phase_map, start_final, len_final, final_phase);
@@ -2220,7 +2221,7 @@ rtsx_set_cmd_data_len(struct rtsx_softc *sc, uint16_t block_cnt, uint16_t byte_c
 static void
 rtsx_send_cmd(struct rtsx_softc *sc)
 {
-	if (bootverbose)
+	if (sc->rtsx_trace)
 		device_printf(sc->rtsx_dev, "rtsx_send_cmd()\n");
 
 	sc->rtsx_intr_status = 0;
@@ -2315,7 +2316,7 @@ rtsx_send_req(struct rtsx_softc *sc, struct mmc_command *cmd)
 	uint8_t	 rsp_type;
 	uint16_t reg;
 
-	if (bootverbose)
+	if (sc->rtsx_trace)
 		device_printf(sc->rtsx_dev, "rtsx_send_req() - CMD%d\n", cmd->opcode);
 
 	/* Convert response type. */
@@ -2396,7 +2397,7 @@ rtsx_set_resp(struct rtsx_softc *sc, struct mmc_command *cmd)
 	if (ISSET(cmd->flags, MMC_RSP_PRESENT)) {
 		uint32_t *cmd_buffer = (uint32_t *)(sc->rtsx_cmd_dmamem);
 
-		if (bootverbose) {
+		if (sc->rtsx_trace) {
 			device_printf(sc->rtsx_dev, "cmd_buffer: 0x%08x 0x%08x 0x%08x 0x%08x 0x%08x\n",
 				      cmd_buffer[0], cmd_buffer[1], cmd_buffer[2], cmd_buffer[3], cmd_buffer[4]);
 		}
@@ -2425,7 +2426,7 @@ rtsx_set_resp(struct rtsx_softc *sc, struct mmc_command *cmd)
 				((be32toh(cmd_buffer[1]) & 0xffff0000) >> 16);
 		}
 
-		if (bootverbose)
+		if (sc->rtsx_trace)
 			device_printf(sc->rtsx_dev, "cmd->resp: 0x%08x 0x%08x 0x%08x 0x%08x\n",
 				      cmd->resp[0], cmd->resp[1], cmd->resp[2], cmd->resp[3]);
 	}
@@ -2448,7 +2449,7 @@ rtsx_xfer_short(struct rtsx_softc *sc, struct mmc_command *cmd)
 
 	read = ISSET(cmd->data->flags, MMC_DATA_READ);
 
-	if (bootverbose)
+	if (sc->rtsx_trace)
 		device_printf(sc->rtsx_dev, "rtsx_xfer_short() - %s xfer: %ld bytes with block size %ld\n",
 			      read ? "Read" : "Write",
 			      (unsigned long)cmd->data->len, (unsigned long)cmd->data->xfer_len);
@@ -2566,7 +2567,7 @@ rtsx_get_ppbuf_part1(struct rtsx_softc *sc)
 		/* Run the command queue. */
 		rtsx_send_cmd(sc);
 	} else {
-		if (bootverbose && cmd->opcode == ACMD_SEND_SCR) {
+		if (sc->rtsx_trace && cmd->opcode == ACMD_SEND_SCR) {
 			uint8_t *ptr = cmd->data->data;
 			device_printf(sc->rtsx_dev, "SCR: 0x%02x%02x%02x%02x%02x%02x%02x%02x\n",
 				      ptr[0], ptr[1], ptr[2], ptr[3],
@@ -2718,7 +2719,7 @@ rtsx_xfer(struct rtsx_softc *sc, struct mmc_command *cmd)
 	cmd->data->xfer_len = (cmd->data->len > RTSX_MAX_DATA_BLKLEN) ?
 		RTSX_MAX_DATA_BLKLEN : cmd->data->len;
 
-	if (bootverbose)
+	if (sc->rtsx_trace)
 		device_printf(sc->rtsx_dev, "rtsx_xfer() - %s xfer: %ld bytes with block size %ld\n",
 			      read ? "Read" : "Write",
 			      (unsigned long)cmd->data->len, (unsigned long)cmd->data->xfer_len);
@@ -2754,7 +2755,7 @@ rtsx_xfer_begin(struct rtsx_softc *sc)
 
 	cmd = sc->rtsx_req->cmd;
 
-	if (bootverbose)
+	if (sc->rtsx_trace)
 		device_printf(sc->rtsx_dev, "rtsx_xfer_begin() - CMD%d\n", cmd->opcode);
 
 	rtsx_set_resp(sc, cmd);
@@ -2867,7 +2868,7 @@ rtsx_xfer_finish(struct rtsx_softc *sc)
 
 	cmd = sc->rtsx_req->cmd;
 
-	if (bootverbose)
+	if (sc->rtsx_trace)
 		device_printf(sc->rtsx_dev, "rtsx_xfer_finish() - CMD%d\n", cmd->opcode);
 
 	read = ISSET(cmd->data->flags, MMC_DATA_READ);
@@ -2944,47 +2945,47 @@ rtsx_set_tran_settings(device_t dev, struct ccb_trans_settings_mmc *cts)
 	if (cts->ios_valid & MMC_CLK) {
 		ios->clock = new_ios->clock;
 		sc->rtsx_ios_clock = -1;	/* To be updated by rtsx_mmcbr_update_ios(). */
-		if (bootverbose || sc->rtsx_debug)
+		if (sc->rtsx_debug)
 			device_printf(sc->rtsx_dev, "rtsx_set_tran_settings() - clock: %u\n", ios->clock);
 	}
 	if (cts->ios_valid & MMC_VDD) {
 		ios->vdd = new_ios->vdd;
-		if (bootverbose || sc->rtsx_debug)
+		if (sc->rtsx_debug)
 			device_printf(sc->rtsx_dev, "rtsx_set_tran_settings() - vdd: %d\n", ios->vdd);
 	}
 	if (cts->ios_valid & MMC_CS) {
 		ios->chip_select = new_ios->chip_select;
-		if (bootverbose || sc->rtsx_debug)
+		if (sc->rtsx_debug)
 			device_printf(sc->rtsx_dev, "rtsx_set_tran_settings() - chip_select: %d\n", ios->chip_select);
 	}
 	if (cts->ios_valid & MMC_BW) {
 		ios->bus_width = new_ios->bus_width;
 		sc->rtsx_ios_bus_width = -1;	/* To be updated by rtsx_mmcbr_update_ios(). */
-		if (bootverbose || sc->rtsx_debug)
+		if (sc->rtsx_debug)
 			device_printf(sc->rtsx_dev, "rtsx_set_tran_settings() - bus width: %d\n", ios->bus_width);
 	}
 	if (cts->ios_valid & MMC_PM) {
 		ios->power_mode = new_ios->power_mode;
 		sc->rtsx_ios_power_mode = -1;	/* To be updated by rtsx_mmcbr_update_ios(). */
-		if (bootverbose || sc->rtsx_debug)
+		if (sc->rtsx_debug)
 			device_printf(sc->rtsx_dev, "rtsx_set_tran_settings() - power mode: %d\n", ios->power_mode);
 	}
 	if (cts->ios_valid & MMC_BT) {
 		ios->timing = new_ios->timing;
 		sc->rtsx_ios_timing = -1;	/* To be updated by rtsx_mmcbr_update_ios(). */
-		if (bootverbose || sc->rtsx_debug)
+		if (sc->rtsx_debug)
 			device_printf(sc->rtsx_dev, "rtsx_set_tran_settings() - timing: %d\n", ios->timing);
 	}
 	if (cts->ios_valid & MMC_BM) {
 		ios->bus_mode = new_ios->bus_mode;
-		if (bootverbose || sc->rtsx_debug)
+		if (sc->rtsx_debug)
 			device_printf(sc->rtsx_dev, "rtsx_set_tran_settings() - bus mode: %d\n", ios->bus_mode);
 	}
 #if  __FreeBSD_version >= 1300000
 	if (cts->ios_valid & MMC_VCCQ) {
 		ios->vccq = new_ios->vccq;
 		sc->rtsx_ios_vccq = -1;		/* To be updated by rtsx_mmcbr_update_ios(). */
-		if (bootverbose || sc->rtsx_debug)
+		if (sc->rtsx_debug)
 			device_printf(sc->rtsx_dev, "rtsx_set_tran_settings() - vccq: %d\n", ios->vccq);
 	}
 #endif /* __FreeBSD_version >= 1300000 */
@@ -3077,7 +3078,7 @@ rtsx_read_ivar(device_t bus, device_t child, int which, uintptr_t *result)
 		return (EINVAL);
 	}
 
-	if (bootverbose)
+	if (sc->rtsx_trace)
 		device_printf(bus, "Read ivar #%d, value %#x / #%d\n",
 			      which, *(int *)result, *(int *)result);
 
@@ -3089,11 +3090,11 @@ rtsx_write_ivar(device_t bus, device_t child, int which, uintptr_t value)
 {
 	struct rtsx_softc *sc;
 
-	if (bootverbose)
+	sc = device_get_softc(bus);
+	if (sc->rtsx_trace)
 		device_printf(bus, "Write ivar #%d, value %#x / #%d\n",
 			      which, (int)value, (int)value);
 
-	sc = device_get_softc(bus);
 	switch (which) {
 	case MMCBR_IVAR_BUS_MODE:		/* ivar  0 - 1 = opendrain, 2 = pushpull */
 		sc->rtsx_host.ios.bus_mode = value;
@@ -3155,7 +3156,7 @@ rtsx_mmcbr_update_ios(device_t bus, device_t child__unused)
 	sc = device_get_softc(bus);
 	ios = &sc->rtsx_host.ios;
 
-	if (bootverbose)
+	if (sc->rtsx_trace)
 		device_printf(bus, "rtsx_mmcbr_update_ios()\n");
 
 	/* if MMCBR_IVAR_BUS_WIDTH updated. */
@@ -3294,7 +3295,7 @@ rtsx_mmcbr_switch_vccq(device_t bus, device_t child __unused)
 		DELAY(300);
 	}
 
-	if (bootverbose || sc->rtsx_debug)
+	if (sc->rtsx_trace || sc->rtsx_debug)
 		device_printf(sc->rtsx_dev, "rtsx_mmcbr_switch_vccq(%d)\n", vccq);
 
 	return (0);
@@ -3315,7 +3316,7 @@ rtsx_mmcbr_tune(device_t bus, device_t child __unused, bool hs400)
 
 	sc = device_get_softc(bus);
 
-	if (bootverbose || sc->rtsx_debug)
+	if (sc->rtsx_debug)
 		device_printf(sc->rtsx_dev, "rtsx_mmcbr_tune() - hs400 is %s\n",
 			      (hs400) ? "true" : "false");
 
@@ -3355,12 +3356,12 @@ rtsx_mmcbr_tune(device_t bus, device_t child __unused, bool hs400)
 
 	phase_map = 0xffffffff;
 	for (i = 0; i < RTSX_RX_TUNING_CNT; i++) {
-		if (bootverbose || sc->rtsx_debug)
+		if (sc->rtsx_debug)
 			device_printf(sc->rtsx_dev, "rtsx_mmcbr_tune() - RX raw_phase_map[%d]: 0x%08x\n",
 				      i, raw_phase_map[i]);
 		phase_map &= raw_phase_map[i];
 	}
-	if (bootverbose || sc->rtsx_debug)
+	if (sc->rtsx_debug)
 		device_printf(sc->rtsx_dev, "rtsx_mmcbr_tune() - RX phase_map: 0x%08x\n", phase_map);
 
 	if (phase_map) {
@@ -3388,7 +3389,7 @@ rtsx_mmcbr_retune(device_t bus, device_t child __unused, bool reset __unused)
 
 	sc = device_get_softc(bus);
 
-	if (bootverbose)
+	if (sc->rtsx_trace)
 		device_printf(sc->rtsx_dev, "rtsx_mmcbr_retune()\n");
 
 	return (0);
@@ -3417,7 +3418,7 @@ rtsx_mmcbr_request(device_t bus, device_t child __unused, struct mmc_request *re
 	sc->rtsx_intr_trans_ok = NULL;
 	sc->rtsx_intr_trans_ko = rtsx_req_done;
 
-	if (bootverbose)
+	if (sc->rtsx_trace)
 		device_printf(sc->rtsx_dev, "rtsx_mmcbr_request(CMD%u arg %#x, flags %#x, dlen %u, dflags %#x)\n",
 			      cmd->opcode, cmd->arg, cmd->flags,
 			      cmd->data != NULL ? (unsigned int)cmd->data->len : 0,
@@ -3487,10 +3488,10 @@ rtsx_mmcbr_acquire_host(device_t bus, device_t child __unused)
 {
 	struct rtsx_softc *sc;
 
-	if (bootverbose)
+	sc = device_get_softc(bus);
+	if (sc->rtsx_trace)
 		device_printf(bus, "rtsx_mmcbr_acquire_host()\n");
 
-	sc = device_get_softc(bus);
 	RTSX_LOCK(sc);
 	while (sc->rtsx_bus_busy)
 		msleep(&sc->rtsx_bus_busy, &sc->rtsx_mtx, 0, "rtsxah", 0);
@@ -3505,10 +3506,10 @@ rtsx_mmcbr_release_host(device_t bus, device_t child __unused)
 {
 	struct rtsx_softc *sc;
 
-	if (bootverbose)
+	sc = device_get_softc(bus);
+	if (sc->rtsx_trace)
 		device_printf(bus, "rtsx_mmcbr_release_host()\n");
 
-	sc = device_get_softc(bus);
 	RTSX_LOCK(sc);
 	sc->rtsx_bus_busy--;
 	wakeup(&sc->rtsx_bus_busy);
@@ -3615,8 +3616,10 @@ rtsx_attach(device_t dev)
 		      &sc->rtsx_inversion, 0, "Inversion of card detection and read only status");
 	SYSCTL_ADD_U8(ctx, tree, OID_AUTO, "force_timing", CTLFLAG_RW,
 		      &sc->rtsx_force_timing, 0, "Force bus_timing_uhs_sdr50");
+	SYSCTL_ADD_U8(ctx, tree, OID_AUTO, "trace", CTLFLAG_RWTUN,
+		      &sc->rtsx_trace, 0, "trace SD commands");
 	SYSCTL_ADD_U8(ctx, tree, OID_AUTO, "debug", CTLFLAG_RWTUN,
-		      &sc->rtsx_debug, 0, "Debugging flag");
+		      &sc->rtsx_debug, 0, "some general debugging");
 	SYSCTL_ADD_U64(ctx, tree, OID_AUTO, "read_count", CTLFLAG_RD | CTLFLAG_STATS,
 		       &sc->rtsx_read_count, 0, "Count of read operations");
 	SYSCTL_ADD_U64(ctx, tree, OID_AUTO, "write_count", CTLFLAG_RD | CTLFLAG_STATS,
