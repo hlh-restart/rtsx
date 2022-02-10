@@ -25,9 +25,9 @@ kldload rtsx
 ```
 #### For debugging:
 
-- `sysctl dev.rtsx.0.debug=1` some debugging informations.
+- `sysctl dev.rtsx.0.debug=1` some general debugging.
 
-- `sysctl debug.bootverbose=1` verbose debugging informations.
+- `sysctl dev.rtsx.0.trace=1` verbose debugging of SD commands.
 
 #### HISTORY:
 
