@@ -61,7 +61,7 @@ kldload rtsx
  - RTS525A under releng/12.1 (Dell Latitude E5570, Dell XPS 13 - model 9360)
  - RTL8411B under stable/12 and releng/13.0
    (Acer Aspire E 15 E5-576-77W6, ACER ASPIRE 5 A515-51G-C97B)
- - RTS5260 under 14.0-CURRENT
+ - RTS5260 under 14.0-CURRENT (Dell XPS 13 9310)
 
 #### KNOWN BUGS:
  - The timeouts experienced during card insert and during I/O are solved in version 1.0g.
