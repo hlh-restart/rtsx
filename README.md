@@ -25,9 +25,13 @@ kldload rtsx
 ```
 #### For debugging:
 
-- `sysctl dev.rtsx.0.debug=1` some general debugging.
+`dev.rtsx.0.debug_mask` can be set with the following masks:
 
-- `sysctl dev.rtsx.0.trace=1` verbose debugging of SD commands.
+- 0x01 - to show the basic flow of the driver,
+
+- 0x02 - to trace the SD commands,
+
+- 0x04 - to trace the tuning phase.
 
 #### HISTORY:
 

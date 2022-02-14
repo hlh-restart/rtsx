@@ -105,6 +105,17 @@ with modifications found in Linux and
 .An Jesper Schmitz Mouridsen Aq Mt jsm@FreeBSD.org
 .Sh CONTRIBUTORS
 .An Lutz Bichler Aq Mt Lutz.Bichler@gmail.com
+.Sh DEBUGGING INFORMATIONS
+.Em dev.rtsx.0.debug_mask
+can be set with the following masks:
+.Bl -bullet
+.It
+0x01 - to show the basic flow of the driver,
+.It
+0x02 - to trace the SD commands,
+.It
+0x04 - to trace the tuning phase.
+.El
 .Sh BUGS
 .Bl -bullet
 .It
