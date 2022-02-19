@@ -25,9 +25,13 @@ kldload rtsx
 ```
 #### For debugging:
 
-- `sysctl dev.rtsx.0.debug=1` some debugging informations.
+`dev.rtsx.0.debug_mask` can be set with the following masks:
 
-- `sysctl debug.bootverbose=1` verbose debugging informations.
+- 0x01 - to show the basic flow of the driver,
+
+- 0x02 - to trace the SD commands,
+
+- 0x04 - to trace the tuning phase.
 
 #### HISTORY:
 
@@ -61,9 +65,9 @@ kldload rtsx
  - RTS525A under releng/12.1 (Dell Latitude E5570, Dell XPS 13 - model 9360)
  - RTL8411B under stable/12 and releng/13.0
    (Acer Aspire E 15 E5-576-77W6, ACER ASPIRE 5 A515-51G-C97B)
+ - RTS5260 under 14.0-CURRENT (Dell XPS 13 9310)
 
 #### KNOWN BUGS:
- - The timeouts experienced during card insert and during I/O are solved in version 1.0g.
  - RTS522A on Lenovo P50s and Lenovo T470p, card detection and read-only switch are reversed.
    To adapt the driver add in loader.conf(5) ```dev.rtsx.0.inversion=1```.
  - Mounting a filesystem with write access on a card write protected may involve a kernel crash.
