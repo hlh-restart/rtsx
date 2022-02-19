@@ -132,7 +132,10 @@ struct rtsx_softc {
 	uint8_t		rtsx_read_only;		/* card read only status */
 	uint8_t		rtsx_inversion;		/* inversion of card detection and read only status */
 	uint8_t		rtsx_force_timing;	/* force bus_timing_uhs_sdr50 */
-	uint8_t		rtsx_debug;		/* print debugging */
+	uint8_t		rtsx_debug_mask;	/* debugging mask */
+#define 	RTSX_DEBUG_BASIC	0x01	/* debug basic flow */
+#define 	RTSX_TRACE_SD_CMD	0x02	/* trace SD commands */
+#define 	RTSX_DEBUG_TUNING	0x04	/* debug tuning */
 #ifdef MMCCAM
 	uint8_t		rtsx_cam_status;	/* CAM status - 1 if card in use */
 #endif /* MMCCAM */
@@ -224,6 +227,7 @@ static int	rtsx_set_sd_timing(struct rtsx_softc *sc, enum mmc_bus_timing timing)
 static int	rtsx_set_sd_clock(struct rtsx_softc *sc, uint32_t freq);
 static int	rtsx_stop_sd_clock(struct rtsx_softc *sc);
 static int	rtsx_switch_sd_clock(struct rtsx_softc *sc, uint8_t clk, uint8_t n, uint8_t div, uint8_t mcu);
+#ifndef MMCCAM
 static void	rtsx_sd_change_tx_phase(struct rtsx_softc *sc, uint8_t sample_point);
 static void	rtsx_sd_change_rx_phase(struct rtsx_softc *sc, uint8_t sample_point);
 static void	rtsx_sd_tuning_rx_phase(struct rtsx_softc *sc, uint32_t *phase_map);
@@ -233,6 +237,7 @@ static void	rtsx_sd_tuning_rx_cmd_wakeup(struct rtsx_softc *sc);
 static void	rtsx_sd_wait_data_idle(struct rtsx_softc *sc);
 static uint8_t	rtsx_sd_search_final_rx_phase(struct rtsx_softc *sc, uint32_t phase_map);
 static int	rtsx_sd_get_rx_phase_len(uint32_t phase_map, int start_bit);
+#endif /* !MMCCAM */
 #if 0	/* For led */
 static int	rtsx_led_enable(struct rtsx_softc *sc);
 static int	rtsx_led_disable(struct rtsx_softc *sc);
@@ -274,12 +279,14 @@ static int	rtsx_write_ivar(device_t bus, device_t child, int which, uintptr_t va
 
 static int	rtsx_mmcbr_update_ios(device_t bus, device_t child __unused);
 static int	rtsx_mmcbr_switch_vccq(device_t bus, device_t child __unused);
+static int	rtsx_mmcbr_request(device_t bus, device_t child __unused, struct mmc_request *req);
+#ifndef MMCCAM
 static int	rtsx_mmcbr_tune(device_t bus, device_t child __unused, bool hs400 __unused);
 static int	rtsx_mmcbr_retune(device_t bus, device_t child __unused, bool reset __unused);
-static int	rtsx_mmcbr_request(device_t bus, device_t child __unused, struct mmc_request *req);
 static int	rtsx_mmcbr_get_ro(device_t bus, device_t child __unused);
 static int	rtsx_mmcbr_acquire_host(device_t bus, device_t child __unused);
 static int	rtsx_mmcbr_release_host(device_t bus, device_t child __unused);
+#endif /* !MMCCAM */
 
 static int	rtsx_probe(device_t dev);
 static int	rtsx_attach(device_t dev);
@@ -555,7 +562,7 @@ rtsx_intr(void *arg)
 	status = READ4(sc, RTSX_BIPR);	/* read Bus Interrupt Pending Register */
 	sc->rtsx_intr_status = status;
 
-	if (bootverbose)
+	if (sc->rtsx_debug_mask & RTSX_TRACE_SD_CMD)
 		device_printf(sc->rtsx_dev, "Interrupt handler - enabled: 0x%08x, status: 0x%08x\n", enabled, status);
 
 	/* Ack interrupts. */
@@ -659,7 +666,7 @@ rtsx_card_task(void *arg, int pending __unused)
 #else  /* !MMCCAM */
 		if (sc->rtsx_mmc_dev == NULL) {
 #endif /* MMCCAM */
-			if (bootverbose)
+			if (sc->rtsx_debug_mask & RTSX_DEBUG_BASIC)
 				device_printf(sc->rtsx_dev, "Card inserted\n");
 
 			sc->rtsx_read_count = sc->rtsx_write_count = 0;
@@ -707,10 +714,10 @@ rtsx_card_task(void *arg, int pending __unused)
 #else  /* !MMCCAM */
 		if (sc->rtsx_mmc_dev != NULL) {
 #endif /* MMCCAM */
-			if (bootverbose)
+			if (sc->rtsx_debug_mask & RTSX_DEBUG_BASIC)
 				device_printf(sc->rtsx_dev, "Card removed\n");
 
-			if (sc->rtsx_debug)
+			if (sc->rtsx_debug_mask & RTSX_DEBUG_BASIC)
 				device_printf(sc->rtsx_dev, "Read count: %" PRIu64 ", write count: %" PRIu64 "\n",
 					      sc->rtsx_read_count, sc->rtsx_write_count);
 #ifdef MMCCAM
@@ -761,7 +768,6 @@ rtsx_is_card_present(struct rtsx_softc *sc)
 static int
 rtsx_init(struct rtsx_softc *sc)
 {
-	bool	rtsx_init_debug = false;
 	uint8_t	version;
 	uint8_t	val;
 	int	error;
@@ -827,10 +833,10 @@ rtsx_init(struct rtsx_softc *sc)
 		if (!(reg & 0x80)) {
 			sc->rtsx_card_drive_sel = (reg >> 8) & 0x3F;
 			sc->rtsx_sd30_drive_sel_3v3 = reg & 0x07;
-		} else if (bootverbose || rtsx_init_debug) {
+		} else if (bootverbose || sc->rtsx_debug_mask & RTSX_DEBUG_BASIC) {
 			device_printf(sc->rtsx_dev, "pci_read_config() error - reg: 0x%08x\n", reg);
 		}
-		if (bootverbose || rtsx_init_debug)
+		if (bootverbose || sc->rtsx_debug_mask & RTSX_DEBUG_BASIC)
 			device_printf(sc->rtsx_dev, "card_drive_sel: 0x%02x, sd30_drive_sel_3v3: 0x%02x\n",
 				      sc->rtsx_card_drive_sel, sc->rtsx_sd30_drive_sel_3v3);
 		break;
@@ -845,10 +851,10 @@ rtsx_init(struct rtsx_softc *sc)
 			sc->rtsx_sd30_drive_sel_3v3 = (reg >> 5) & 0x03;
 			if (reg & 0x4000)
 				sc->rtsx_flags |= RTSX_F_REVERSE_SOCKET;
-		} else if (bootverbose || rtsx_init_debug) {
+		} else if (bootverbose || sc->rtsx_debug_mask & RTSX_DEBUG_BASIC) {
 			device_printf(sc->rtsx_dev, "pci_read_config() error - reg: 0x%08x\n", reg);
 		}
-		if (bootverbose || rtsx_init_debug)
+		if (bootverbose || sc->rtsx_debug_mask & RTSX_DEBUG_BASIC)
 			device_printf(sc->rtsx_dev,
 				      "card_drive_sel: 0x%02x, sd30_drive_sel_3v3: 0x%02x, reverse_socket is %s\n",
 				      sc->rtsx_card_drive_sel, sc->rtsx_sd30_drive_sel_3v3,
@@ -862,10 +868,10 @@ rtsx_init(struct rtsx_softc *sc)
 			sc->rtsx_card_drive_sel |= ((reg >> 25) & 0x01) << 6;
 			reg = pci_read_config(sc->rtsx_dev, RTSX_PCR_SETTING_REG2, 4);
 			sc->rtsx_sd30_drive_sel_3v3 = rtsx_map_sd_drive((reg >> 5) & 0x03);
-		} else if (bootverbose || rtsx_init_debug) {
+		} else if (bootverbose || sc->rtsx_debug_mask & RTSX_DEBUG_BASIC) {
 			device_printf(sc->rtsx_dev, "pci_read_config() error - reg: 0x%08x\n", reg);
 		}
-		if (bootverbose || rtsx_init_debug)
+		if (bootverbose || sc->rtsx_debug_mask & RTSX_DEBUG_BASIC)
 			device_printf(sc->rtsx_dev, "card_drive_sel: 0x%02x, sd30_drive_sel_3v3: 0x%02x\n",
 				      sc->rtsx_card_drive_sel, sc->rtsx_sd30_drive_sel_3v3);
 		break;
@@ -881,10 +887,10 @@ rtsx_init(struct rtsx_softc *sc)
 			sc->rtsx_sd30_drive_sel_3v3 = (reg >> 5) & 0x03;
 			if (reg & 0x4000)
 				sc->rtsx_flags |= RTSX_F_REVERSE_SOCKET;
-		} else if (bootverbose || rtsx_init_debug) {
+		} else if (bootverbose || sc->rtsx_debug_mask & RTSX_DEBUG_BASIC) {
 			device_printf(sc->rtsx_dev, "pci_read_config() error - reg: 0x%08x\n", reg);
 		}
-		if (bootverbose || rtsx_init_debug)
+		if (bootverbose || sc->rtsx_debug_mask & RTSX_DEBUG_BASIC)
 			device_printf(sc->rtsx_dev,
 				      "card_drive_sel = 0x%02x, sd30_drive_sel_3v3: 0x%02x, reverse_socket is %s\n",
 				      sc->rtsx_card_drive_sel, sc->rtsx_sd30_drive_sel_3v3,
@@ -900,10 +906,10 @@ rtsx_init(struct rtsx_softc *sc)
 			sc->rtsx_card_drive_sel |= ((reg1 >> 25) & 0x01) << 6;
 			reg3 = pci_read_config(sc->rtsx_dev, RTSX_PCR_SETTING_REG3, 1);
 			sc->rtsx_sd30_drive_sel_3v3 = (reg3 >> 5) & 0x07;
-		} else if (bootverbose || rtsx_init_debug) {
+		} else if (bootverbose || sc->rtsx_debug_mask & RTSX_DEBUG_BASIC) {
 			device_printf(sc->rtsx_dev, "pci_read_config() error - reg1: 0x%08x\n", reg1);
 		}
-		if (bootverbose || rtsx_init_debug)
+		if (bootverbose || sc->rtsx_debug_mask & RTSX_DEBUG_BASIC)
 			device_printf(sc->rtsx_dev,
 				      "card_drive_sel: 0x%02x, sd30_drive_sel_3v3: 0x%02x\n",
 				      sc->rtsx_card_drive_sel, sc->rtsx_sd30_drive_sel_3v3);
@@ -914,17 +920,17 @@ rtsx_init(struct rtsx_softc *sc)
 		reg = pci_read_config(sc->rtsx_dev, RTSX_PCR_SETTING_REG1, 4);
 		if (!(reg & 0x1000000)) {
 			sc->rtsx_sd30_drive_sel_3v3 = rtsx_map_sd_drive(reg & 0x03);
-		} else if (bootverbose || rtsx_init_debug) {
+		} else if (bootverbose || sc->rtsx_debug_mask & RTSX_DEBUG_BASIC) {
 			device_printf(sc->rtsx_dev, "pci_read_config() error - reg: 0x%08x\n", reg);
 		}
-		if (bootverbose || rtsx_init_debug)
+		if (bootverbose || sc->rtsx_debug_mask & RTSX_DEBUG_BASIC)
 			device_printf(sc->rtsx_dev,
 				      "card_drive_sel: 0x%02x, sd30_drive_sel_3v3: 0x%02x\n",
 				      sc->rtsx_card_drive_sel, sc->rtsx_sd30_drive_sel_3v3);
 		break;
 	}
 
-	if (bootverbose || rtsx_init_debug)
+	if (bootverbose || sc->rtsx_debug_mask & RTSX_DEBUG_BASIC)
 		device_printf(sc->rtsx_dev, "rtsx_init() rtsx_flags: 0x%04x\n", sc->rtsx_flags);
 
 	/* Enable interrupts. */
@@ -1480,7 +1486,7 @@ rtsx_write_phy(struct rtsx_softc *sc, uint8_t addr, uint16_t val)
 static int
 rtsx_bus_power_off(struct rtsx_softc *sc)
 {
-	if (bootverbose || sc->rtsx_debug)
+	if (sc->rtsx_debug_mask & RTSX_DEBUG_BASIC)
 		device_printf(sc->rtsx_dev, "rtsx_bus_power_off()\n");
 
 	/* Disable SD clock. */
@@ -1580,7 +1586,7 @@ rtsx_bus_power_off(struct rtsx_softc *sc)
 static int
 rtsx_bus_power_on(struct rtsx_softc *sc)
 {
-	if (bootverbose || sc->rtsx_debug)
+	if (sc->rtsx_debug_mask & RTSX_DEBUG_BASIC)
 		device_printf(sc->rtsx_dev, "rtsx_bus_power_on()\n");
 
 	/* Select SD card. */
@@ -1771,7 +1777,7 @@ rtsx_set_bus_width(struct rtsx_softc *sc, enum mmc_bus_width width)
 	}
 	RTSX_BITOP(sc, RTSX_SD_CFG1, RTSX_BUS_WIDTH_MASK, bus_width);
 
-	if (bootverbose || sc->rtsx_debug) {
+	if (sc->rtsx_debug_mask & RTSX_DEBUG_BASIC) {
 		char *busw[] = {
 				"1 bit",
 				"4 bits",
@@ -1790,7 +1796,7 @@ rtsx_set_sd_timing(struct rtsx_softc *sc, enum mmc_bus_timing timing)
 		sc->rtsx_ios_timing = timing;
 	}
 
-	if (bootverbose || sc->rtsx_debug)
+	if (sc->rtsx_debug_mask & RTSX_DEBUG_BASIC)
 		device_printf(sc->rtsx_dev, "rtsx_set_sd_timing(%u)\n", timing);
 
 	switch (timing) {
@@ -1844,7 +1850,7 @@ rtsx_set_sd_clock(struct rtsx_softc *sc, uint32_t freq)
 	uint8_t	clk_divider, n, div, mcu;
 	int	error = 0;
 
-	if (bootverbose || sc->rtsx_debug)
+	if (sc->rtsx_debug_mask & RTSX_DEBUG_BASIC)
 		device_printf(sc->rtsx_dev, "rtsx_set_sd_clock(%u)\n", freq);
 
 	if (freq == RTSX_SDCLK_OFF) {
@@ -1931,7 +1937,7 @@ rtsx_stop_sd_clock(struct rtsx_softc *sc)
 static int
 rtsx_switch_sd_clock(struct rtsx_softc *sc, uint8_t clk, uint8_t n, uint8_t div, uint8_t mcu)
 {
-	if (bootverbose || sc->rtsx_debug) {
+	if (sc->rtsx_debug_mask & RTSX_DEBUG_BASIC) {
 		device_printf(sc->rtsx_dev, "rtsx_switch_sd_clock() - discovery-mode is %s, ssc_depth: %d\n",
 			      (sc->rtsx_discovery_mode) ? "true" : "false", sc->rtsx_ssc_depth);
 		device_printf(sc->rtsx_dev, "rtsx_switch_sd_clock() - clk: %d, n: %d, div: %d, mcu: %d\n",
@@ -1957,10 +1963,11 @@ rtsx_switch_sd_clock(struct rtsx_softc *sc, uint8_t clk, uint8_t n, uint8_t div,
 	return (0);
 }
 
+#ifndef MMCCAM
 static void
 rtsx_sd_change_tx_phase(struct rtsx_softc *sc, uint8_t sample_point)
 {
-	if (bootverbose || sc->rtsx_debug)
+	if (sc->rtsx_debug_mask & RTSX_DEBUG_BASIC)
 		device_printf(sc->rtsx_dev, "rtsx_sd_change_tx_phase() - sample_point: %d\n", sample_point);
 
 	rtsx_write(sc, RTSX_CLK_CTL, RTSX_CHANGE_CLK, RTSX_CHANGE_CLK);
@@ -1974,7 +1981,7 @@ rtsx_sd_change_tx_phase(struct rtsx_softc *sc, uint8_t sample_point)
 static void
 rtsx_sd_change_rx_phase(struct rtsx_softc *sc, uint8_t sample_point)
 {
-	if (bootverbose || sc->rtsx_debug == 2)
+	if (sc->rtsx_debug_mask & RTSX_DEBUG_TUNING)
 		device_printf(sc->rtsx_dev, "rtsx_sd_change_rx_phase() - sample_point: %d\n", sample_point);
 
 	rtsx_write(sc, RTSX_CLK_CTL, RTSX_CHANGE_CLK, RTSX_CHANGE_CLK);
@@ -2041,7 +2048,7 @@ rtsx_sd_tuning_rx_cmd(struct rtsx_softc *sc, uint8_t sample_point)
 	error = rtsx_sd_tuning_rx_cmd_wait(sc, &cmd);
 
 	if (error) {
-		if (bootverbose || sc->rtsx_debug == 2)
+		if (sc->rtsx_debug_mask & RTSX_DEBUG_TUNING)
 			device_printf(sc->rtsx_dev, "rtsx_sd_tuning_rx_cmd() - error: %d\n", error);
 		rtsx_sd_wait_data_idle(sc);
 		rtsx_clear_error(sc);
@@ -2110,7 +2117,7 @@ rtsx_sd_search_final_rx_phase(struct rtsx_softc *sc, uint32_t phase_map)
 
 	final_phase = (start_final + len_final / 2) % RTSX_RX_PHASE_MAX;
 
-	if (bootverbose || sc->rtsx_debug)
+	if (sc->rtsx_debug_mask & RTSX_DEBUG_BASIC)
 		device_printf(sc->rtsx_dev,
 			      "rtsx_sd_search_final_rx_phase() - phase_map: %x, start_final: %d, len_final: %d, final_phase: %d\n",
 			      phase_map, start_final, len_final, final_phase);
@@ -2129,6 +2136,7 @@ rtsx_sd_get_rx_phase_len(uint32_t phase_map, int start_bit)
 	}
 	return RTSX_RX_PHASE_MAX;
 }
+#endif /* !MMCCAM */
 
 #if 0	/* For led */
 static int
@@ -2262,7 +2270,7 @@ rtsx_set_cmd_data_len(struct rtsx_softc *sc, uint16_t block_cnt, uint16_t byte_c
 static void
 rtsx_send_cmd(struct rtsx_softc *sc)
 {
-	if (bootverbose)
+	if (sc->rtsx_debug_mask & RTSX_TRACE_SD_CMD)
 		device_printf(sc->rtsx_dev, "rtsx_send_cmd()\n");
 
 	sc->rtsx_intr_status = 0;
@@ -2357,7 +2365,7 @@ rtsx_send_req(struct rtsx_softc *sc, struct mmc_command *cmd)
 	uint8_t	 rsp_type;
 	uint16_t reg;
 
-	if (bootverbose)
+	if (sc->rtsx_debug_mask & RTSX_TRACE_SD_CMD)
 		device_printf(sc->rtsx_dev, "rtsx_send_req() - CMD%d\n", cmd->opcode);
 
 	/* Convert response type. */
@@ -2438,7 +2446,7 @@ rtsx_set_resp(struct rtsx_softc *sc, struct mmc_command *cmd)
 	if (ISSET(cmd->flags, MMC_RSP_PRESENT)) {
 		uint32_t *cmd_buffer = (uint32_t *)(sc->rtsx_cmd_dmamem);
 
-		if (bootverbose) {
+		if (sc->rtsx_debug_mask & RTSX_TRACE_SD_CMD) {
 			device_printf(sc->rtsx_dev, "cmd_buffer: 0x%08x 0x%08x 0x%08x 0x%08x 0x%08x\n",
 				      cmd_buffer[0], cmd_buffer[1], cmd_buffer[2], cmd_buffer[3], cmd_buffer[4]);
 		}
@@ -2467,7 +2475,7 @@ rtsx_set_resp(struct rtsx_softc *sc, struct mmc_command *cmd)
 				((be32toh(cmd_buffer[1]) & 0xffff0000) >> 16);
 		}
 
-		if (bootverbose)
+		if (sc->rtsx_debug_mask & RTSX_TRACE_SD_CMD)
 			device_printf(sc->rtsx_dev, "cmd->resp: 0x%08x 0x%08x 0x%08x 0x%08x\n",
 				      cmd->resp[0], cmd->resp[1], cmd->resp[2], cmd->resp[3]);
 	}
@@ -2490,7 +2498,7 @@ rtsx_xfer_short(struct rtsx_softc *sc, struct mmc_command *cmd)
 
 	read = ISSET(cmd->data->flags, MMC_DATA_READ);
 
-	if (bootverbose)
+	if (sc->rtsx_debug_mask & RTSX_TRACE_SD_CMD)
 		device_printf(sc->rtsx_dev, "rtsx_xfer_short() - %s xfer: %ld bytes with block size %ld\n",
 			      read ? "Read" : "Write",
 			      (unsigned long)cmd->data->len, (unsigned long)cmd->data->xfer_len);
@@ -2608,7 +2616,7 @@ rtsx_get_ppbuf_part1(struct rtsx_softc *sc)
 		/* Run the command queue. */
 		rtsx_send_cmd(sc);
 	} else {
-		if (bootverbose && cmd->opcode == ACMD_SEND_SCR) {
+		if (sc->rtsx_debug_mask & RTSX_TRACE_SD_CMD && cmd->opcode == ACMD_SEND_SCR) {
 			uint8_t *ptr = cmd->data->data;
 			device_printf(sc->rtsx_dev, "SCR: 0x%02x%02x%02x%02x%02x%02x%02x%02x\n",
 				      ptr[0], ptr[1], ptr[2], ptr[3],
@@ -2760,7 +2768,7 @@ rtsx_xfer(struct rtsx_softc *sc, struct mmc_command *cmd)
 	cmd->data->xfer_len = (cmd->data->len > RTSX_MAX_DATA_BLKLEN) ?
 		RTSX_MAX_DATA_BLKLEN : cmd->data->len;
 
-	if (bootverbose)
+	if (sc->rtsx_debug_mask & RTSX_TRACE_SD_CMD)
 		device_printf(sc->rtsx_dev, "rtsx_xfer() - %s xfer: %ld bytes with block size %ld\n",
 			      read ? "Read" : "Write",
 			      (unsigned long)cmd->data->len, (unsigned long)cmd->data->xfer_len);
@@ -2796,7 +2804,7 @@ rtsx_xfer_begin(struct rtsx_softc *sc)
 
 	cmd = sc->rtsx_req->cmd;
 
-	if (bootverbose)
+	if (sc->rtsx_debug_mask & RTSX_TRACE_SD_CMD)
 		device_printf(sc->rtsx_dev, "rtsx_xfer_begin() - CMD%d\n", cmd->opcode);
 
 	rtsx_set_resp(sc, cmd);
@@ -2909,7 +2917,7 @@ rtsx_xfer_finish(struct rtsx_softc *sc)
 
 	cmd = sc->rtsx_req->cmd;
 
-	if (bootverbose)
+	if (sc->rtsx_debug_mask & RTSX_TRACE_SD_CMD)
 		device_printf(sc->rtsx_dev, "rtsx_xfer_finish() - CMD%d\n", cmd->opcode);
 
 	read = ISSET(cmd->data->flags, MMC_DATA_READ);
@@ -2995,7 +3003,7 @@ rtsx_cam_action(struct cam_sim *sim, union ccb *ccb)
 	{
 		struct ccb_trans_settings *cts = &ccb->cts;
 
-		if (bootverbose || sc->rtsx_debug)
+		if (sc->rtsx_debug_mask & RTSX_TRACE_SD_CMD)
 			device_printf(sc->rtsx_dev, "rtsx_cam_action() - got XPT_GET_TRAN_SETTINGS\n");
 
 		cts->protocol = PROTO_MMCSD;
@@ -3019,14 +3027,14 @@ rtsx_cam_action(struct cam_sim *sim, union ccb *ccb)
 	case XPT_MMC_SET_TRAN_SETTINGS:
 #endif
 	case XPT_SET_TRAN_SETTINGS:
-		if (bootverbose || sc->rtsx_debug)
+		if (sc->rtsx_debug_mask & RTSX_TRACE_SD_CMD)
 			device_printf(sc->rtsx_dev, "rtsx_cam_action() - got XPT_SET_TRAN_SETTINGS\n");
 
 		/* Apply settings and set ccb->ccb_h.status accordingly. */
 		rtsx_cam_set_tran_settings(sc, ccb);
 		break;
 	case XPT_RESET_BUS:
-		if (bootverbose || sc->rtsx_debug)
+		if (sc->rtsx_debug_mask & RTSX_TRACE_SD_CMD)
 			device_printf(sc->rtsx_dev, "got XPT_RESET_BUS, ACK it...\n");
 
 		ccb->ccb_h.status = CAM_REQ_CMP;
@@ -3074,47 +3082,47 @@ rtsx_cam_set_tran_settings(struct rtsx_softc *sc, union ccb *ccb)
 	if (cts->ios_valid & MMC_CLK) {
 		ios->clock = new_ios->clock;
 		sc->rtsx_ios_clock = -1;	/* To be updated by rtsx_mmcbr_update_ios(). */
-		if (bootverbose || sc->rtsx_debug)
+		if (sc->rtsx_debug_mask & RTSX_TRACE_SD_CMD)
 			device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - clock: %u\n", ios->clock);
 	}
 	if (cts->ios_valid & MMC_VDD) {
 		ios->vdd = new_ios->vdd;
-		if (bootverbose || sc->rtsx_debug)
+		if (sc->rtsx_debug_mask & RTSX_TRACE_SD_CMD)
 			device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - vdd: %d\n", ios->vdd);
 	}
 	if (cts->ios_valid & MMC_CS) {
 		ios->chip_select = new_ios->chip_select;
-		if (bootverbose || sc->rtsx_debug)
+		if (sc->rtsx_debug_mask & RTSX_TRACE_SD_CMD)
 			device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - chip_select: %d\n", ios->chip_select);
 	}
 	if (cts->ios_valid & MMC_BW) {
 		ios->bus_width = new_ios->bus_width;
 		sc->rtsx_ios_bus_width = -1;	/* To be updated by rtsx_mmcbr_update_ios(). */
-		if (bootverbose || sc->rtsx_debug)
+		if (sc->rtsx_debug_mask & RTSX_TRACE_SD_CMD)
 			device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - bus width: %d\n", ios->bus_width);
 	}
 	if (cts->ios_valid & MMC_PM) {
 		ios->power_mode = new_ios->power_mode;
 		sc->rtsx_ios_power_mode = -1;	/* To be updated by rtsx_mmcbr_update_ios(). */
-		if (bootverbose || sc->rtsx_debug)
+		if (sc->rtsx_debug_mask & RTSX_TRACE_SD_CMD)
 			device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - power mode: %d\n", ios->power_mode);
 	}
 	if (cts->ios_valid & MMC_BT) {
 		ios->timing = new_ios->timing;
 		sc->rtsx_ios_timing = -1;	/* To be updated by rtsx_mmcbr_update_ios(). */
-		if (bootverbose || sc->rtsx_debug)
+		if (sc->rtsx_debug_mask & RTSX_TRACE_SD_CMD)
 			device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - timing: %d\n", ios->timing);
 	}
 	if (cts->ios_valid & MMC_BM) {
 		ios->bus_mode = new_ios->bus_mode;
-		if (bootverbose || sc->rtsx_debug)
+		if (sc->rtsx_debug_mask & RTSX_TRACE_SD_CMD)
 			device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - bus mode: %d\n", ios->bus_mode);
 	}
 #if  __FreeBSD_version >= 1300000
 	if (cts->ios_valid & MMC_VCCQ) {
 		ios->vccq = new_ios->vccq;
 		sc->rtsx_ios_vccq = -1;		/* To be updated by rtsx_mmcbr_update_ios(). */
-		if (bootverbose || sc->rtsx_debug)
+		if (sc->rtsx_debug_mask & RTSX_TRACE_SD_CMD)
 			device_printf(sc->rtsx_dev, "rtsx_cam_set_tran_settings() - vccq: %d\n", ios->vccq);
 	}
 #endif /* __FreeBSD_version_ >= 1300000 */
@@ -3206,7 +3214,7 @@ rtsx_read_ivar(device_t bus, device_t child, int which, uintptr_t *result)
 		return (EINVAL);
 	}
 
-	if (bootverbose)
+	if (sc->rtsx_debug_mask & RTSX_TRACE_SD_CMD)
 		device_printf(bus, "Read ivar #%d, value %#x / #%d\n",
 			      which, *(int *)result, *(int *)result);
 
@@ -3218,11 +3226,11 @@ rtsx_write_ivar(device_t bus, device_t child, int which, uintptr_t value)
 {
 	struct rtsx_softc *sc;
 
-	if (bootverbose)
+	sc = device_get_softc(bus);
+	if (sc->rtsx_debug_mask & RTSX_TRACE_SD_CMD)
 		device_printf(bus, "Write ivar #%d, value %#x / #%d\n",
 			      which, (int)value, (int)value);
 
-	sc = device_get_softc(bus);
 	switch (which) {
 	case MMCBR_IVAR_BUS_MODE:		/* ivar  0 - 1 = opendrain, 2 = pushpull */
 		sc->rtsx_host.ios.bus_mode = value;
@@ -3274,6 +3282,7 @@ rtsx_write_ivar(device_t bus, device_t child, int which, uintptr_t value)
 	return (0);
 }
 
+
 static int
 rtsx_mmcbr_update_ios(device_t bus, device_t child__unused)
 {
@@ -3284,7 +3293,7 @@ rtsx_mmcbr_update_ios(device_t bus, device_t child__unused)
 	sc = device_get_softc(bus);
 	ios = &sc->rtsx_host.ios;
 
-	if (bootverbose)
+	if (sc->rtsx_debug_mask & RTSX_TRACE_SD_CMD)
 		device_printf(bus, "rtsx_mmcbr_update_ios()\n");
 
 	/* if MMCBR_IVAR_BUS_WIDTH updated. */
@@ -3423,12 +3432,13 @@ rtsx_mmcbr_switch_vccq(device_t bus, device_t child __unused)
 		DELAY(300);
 	}
 
-	if (bootverbose || sc->rtsx_debug)
+	if (sc->rtsx_debug_mask & RTSX_DEBUG_BASIC)
 		device_printf(sc->rtsx_dev, "rtsx_mmcbr_switch_vccq(%d)\n", vccq);
 
 	return (0);
 }
 
+#ifndef MMCCAM
 /*
  * Tune card if bus_timing_uhs_sdr50.
  */
@@ -3443,7 +3453,7 @@ rtsx_mmcbr_tune(device_t bus, device_t child __unused, bool hs400)
 
 	sc = device_get_softc(bus);
 
-	if (bootverbose || sc->rtsx_debug)
+	if (sc->rtsx_debug_mask & RTSX_DEBUG_BASIC)
 		device_printf(sc->rtsx_dev, "rtsx_mmcbr_tune() - hs400 is %s\n",
 			      (hs400) ? "true" : "false");
 
@@ -3483,24 +3493,18 @@ rtsx_mmcbr_tune(device_t bus, device_t child __unused, bool hs400)
 
 	phase_map = 0xffffffff;
 	for (i = 0; i < RTSX_RX_TUNING_CNT; i++) {
-		if (bootverbose || sc->rtsx_debug)
+		if (sc->rtsx_debug_mask & (RTSX_DEBUG_BASIC | RTSX_DEBUG_TUNING))
 			device_printf(sc->rtsx_dev, "rtsx_mmcbr_tune() - RX raw_phase_map[%d]: 0x%08x\n",
 				      i, raw_phase_map[i]);
 		phase_map &= raw_phase_map[i];
 	}
-	if (bootverbose || sc->rtsx_debug)
+	if (sc->rtsx_debug_mask & RTSX_DEBUG_BASIC)
 		device_printf(sc->rtsx_dev, "rtsx_mmcbr_tune() - RX phase_map: 0x%08x\n", phase_map);
 
 	if (phase_map) {
 		final_phase = rtsx_sd_search_final_rx_phase(sc, phase_map);
 		if (final_phase != 0xff) {
-			if (sc->rtsx_debug == 1) {
-				sc->rtsx_debug = 2;
-				rtsx_sd_change_rx_phase(sc, final_phase);
-				sc->rtsx_debug = 1;
-			} else {
-				rtsx_sd_change_rx_phase(sc, final_phase);
-			}
+			rtsx_sd_change_rx_phase(sc, final_phase);
 		}
 	}
 
@@ -3516,11 +3520,12 @@ rtsx_mmcbr_retune(device_t bus, device_t child __unused, bool reset __unused)
 
 	sc = device_get_softc(bus);
 
-	if (bootverbose)
+	if (sc->rtsx_debug_mask & RTSX_TRACE_SD_CMD)
 		device_printf(sc->rtsx_dev, "rtsx_mmcbr_retune()\n");
 
 	return (0);
 }
+#endif /* !MMCCAM */
 
 static int
 rtsx_mmcbr_request(device_t bus, device_t child __unused, struct mmc_request *req)
@@ -3544,7 +3549,7 @@ rtsx_mmcbr_request(device_t bus, device_t child __unused, struct mmc_request *re
 	sc->rtsx_intr_trans_ok = NULL;
 	sc->rtsx_intr_trans_ko = rtsx_req_done;
 
-	if (bootverbose)
+	if (sc->rtsx_debug_mask & RTSX_TRACE_SD_CMD)
 		device_printf(sc->rtsx_dev, "rtsx_mmcbr_request(CMD%u arg %#x, flags %#x, dlen %u, dflags %#x)\n",
 			      cmd->opcode, cmd->arg, cmd->flags,
 			      cmd->data != NULL ? (unsigned int)cmd->data->len : 0,
@@ -3595,6 +3600,7 @@ rtsx_mmcbr_request(device_t bus, device_t child __unused, struct mmc_request *re
 	return (error);
 }
 
+#ifndef MMCCAM
 static int
 rtsx_mmcbr_get_ro(device_t bus, device_t child __unused)
 {
@@ -3613,10 +3619,10 @@ rtsx_mmcbr_acquire_host(device_t bus, device_t child __unused)
 {
 	struct rtsx_softc *sc;
 
-	if (bootverbose)
+	sc = device_get_softc(bus);
+	if (sc->rtsx_debug_mask & RTSX_TRACE_SD_CMD)
 		device_printf(bus, "rtsx_mmcbr_acquire_host()\n");
 
-	sc = device_get_softc(bus);
 	RTSX_LOCK(sc);
 	while (sc->rtsx_bus_busy)
 		msleep(&sc->rtsx_bus_busy, &sc->rtsx_mtx, 0, "rtsxah", 0);
@@ -3631,10 +3637,10 @@ rtsx_mmcbr_release_host(device_t bus, device_t child __unused)
 {
 	struct rtsx_softc *sc;
 
-	if (bootverbose)
+	sc = device_get_softc(bus);
+	if (sc->rtsx_debug_mask & RTSX_TRACE_SD_CMD)
 		device_printf(bus, "rtsx_mmcbr_release_host()\n");
 
-	sc = device_get_softc(bus);
 	RTSX_LOCK(sc);
 	sc->rtsx_bus_busy--;
 	wakeup(&sc->rtsx_bus_busy);
@@ -3642,6 +3648,7 @@ rtsx_mmcbr_release_host(device_t bus, device_t child __unused)
 
 	return (0);
 }
+#endif /* !MMCCAM */
 
 /*
  *
@@ -3708,7 +3715,7 @@ rtsx_attach(device_t dev)
 	sc->rtsx_read_only = 0;
 	sc->rtsx_inversion = 0;
 	sc->rtsx_force_timing = 0;
-	sc->rtsx_debug = 0;
+	sc->rtsx_debug_mask = 0;
 	sc->rtsx_read_count = 0;
 	sc->rtsx_write_count = 0;
 
@@ -3740,14 +3747,14 @@ rtsx_attach(device_t dev)
 		      &sc->rtsx_inversion, 0, "Inversion of card detection and read only status");
 	SYSCTL_ADD_U8(ctx, tree, OID_AUTO, "force_timing", CTLFLAG_RW,
 		      &sc->rtsx_force_timing, 0, "Force bus_timing_uhs_sdr50");
-	SYSCTL_ADD_U8(ctx, tree, OID_AUTO, "debug", CTLFLAG_RWTUN,
-		      &sc->rtsx_debug, 0, "Debugging flag");
+	SYSCTL_ADD_U8(ctx, tree, OID_AUTO, "debug_mask", CTLFLAG_RWTUN,
+		      &sc->rtsx_debug_mask, 0, "debugging mask, see rtsx(4)");
 	SYSCTL_ADD_U64(ctx, tree, OID_AUTO, "read_count", CTLFLAG_RD | CTLFLAG_STATS,
 		       &sc->rtsx_read_count, 0, "Count of read operations");
 	SYSCTL_ADD_U64(ctx, tree, OID_AUTO, "write_count", CTLFLAG_RD | CTLFLAG_STATS,
 		       &sc->rtsx_write_count, 0, "Count of write operations");
 
-	if (bootverbose || sc->rtsx_debug)
+	if (bootverbose || sc->rtsx_debug_mask & RTSX_DEBUG_BASIC)
 		device_printf(dev, "We are running with inversion: %d\n", sc->rtsx_inversion);
 
 	/* Allocate IRQ. */
@@ -4003,6 +4010,7 @@ static device_method_t rtsx_methods[] = {
 	DEVMETHOD(bus_read_ivar,	rtsx_read_ivar),
 	DEVMETHOD(bus_write_ivar,	rtsx_write_ivar),
 
+#ifndef MMCCAM
 	/* MMC bridge interface */
 	DEVMETHOD(mmcbr_update_ios,	rtsx_mmcbr_update_ios),
 	DEVMETHOD(mmcbr_switch_vccq,	rtsx_mmcbr_switch_vccq),
@@ -4012,6 +4020,7 @@ static device_method_t rtsx_methods[] = {
 	DEVMETHOD(mmcbr_get_ro,		rtsx_mmcbr_get_ro),
 	DEVMETHOD(mmcbr_acquire_host,	rtsx_mmcbr_acquire_host),
 	DEVMETHOD(mmcbr_release_host,	rtsx_mmcbr_release_host),
+#endif /* !MMCCAM */
 
 	DEVMETHOD_END
 };
