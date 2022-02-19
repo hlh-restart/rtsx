@@ -165,11 +165,12 @@ struct rtsx_softc {
 #define	RTSX_RTS522A		0x522a
 #define	RTSX_RTS525A		0x525a
 #define	RTSX_RTS5249		0x5249
+#define	RTSX_RTS5260		0x5260
 #define	RTSX_RTL8402		0x5286
 #define	RTSX_RTL8411		0x5289
 #define	RTSX_RTL8411B		0x5287
 
-#define	RTSX_VERSION		"2.0l"
+#define	RTSX_VERSION		"2.0m"
 
 static const struct rtsx_device {
 	uint16_t	vendor_id;
@@ -182,6 +183,7 @@ static const struct rtsx_device {
 	{ RTSX_REALTEK,	RTSX_RTS522A,	RTSX_VERSION " Realtek RTS522A PCIe MMC/SD Card Reader"},
 	{ RTSX_REALTEK,	RTSX_RTS525A,	RTSX_VERSION " Realtek RTS525A PCIe MMC/SD Card Reader"},
 	{ RTSX_REALTEK,	RTSX_RTS5249,	RTSX_VERSION " Realtek RTS5249 PCIe MMC/SD Card Reader"},
+	{ RTSX_REALTEK,	RTSX_RTS5260,	RTSX_VERSION " Realtek RTS5260 PCIe MMC/SD Card Reader"},
 	{ RTSX_REALTEK,	RTSX_RTL8402,	RTSX_VERSION " Realtek RTL8402 PCIe MMC/SD Card Reader"},
 	{ RTSX_REALTEK,	RTSX_RTL8411,	RTSX_VERSION " Realtek RTL8411 PCIe MMC/SD Card Reader"},
 	{ RTSX_REALTEK,	RTSX_RTL8411B,	RTSX_VERSION " Realtek RTL8411B PCIe MMC/SD Card Reader"},
@@ -209,6 +211,7 @@ static int	rtsx_init(struct rtsx_softc *sc);
 static int	rtsx_map_sd_drive(int index);
 static int	rtsx_rts5227_fill_driving(struct rtsx_softc *sc);
 static int	rtsx_rts5249_fill_driving(struct rtsx_softc *sc);
+static int	rtsx_rts5260_fill_driving(struct rtsx_softc *sc);
 static int	rtsx_read(struct rtsx_softc *, uint16_t, uint8_t *);
 static int	rtsx_read_cfg(struct rtsx_softc *sc, uint8_t func, uint16_t addr, uint32_t *val);
 static int	rtsx_write(struct rtsx_softc *sc, uint16_t addr, uint8_t mask, uint8_t val);
@@ -868,6 +871,7 @@ rtsx_init(struct rtsx_softc *sc)
 		break;
 	case RTSX_RTS525A:
 	case RTSX_RTS5249:
+	case RTSX_RTS5260:
 		sc->rtsx_sd30_drive_sel_3v3 = RTSX_CFG_DRIVER_TYPE_B;
 		reg = pci_read_config(sc->rtsx_dev, RTSX_PCR_SETTING_REG1, 4);
 		if ((reg & 0x1000000)) {
@@ -1242,6 +1246,27 @@ rtsx_init(struct rtsx_softc *sc)
 		else
 			RTSX_BITOP(sc, RTSX_PETXCFG, 0xB0, 0x80);
 		break;
+	case RTSX_RTS5260:
+		/* Set mcu_cnt to 7 to ensure data can be sampled properly. */
+		RTSX_BITOP(sc, RTSX_CLK_DIV, 0x07, 0x07);
+		RTSX_WRITE(sc, RTSX_SSC_DIV_N_0, 0x5D);
+		/* force no MDIO*/
+		RTSX_WRITE(sc, RTSX_RTS5260_AUTOLOAD_CFG4, RTSX_RTS5260_MIMO_DISABLE);
+		/*Modify SDVCC Tune Default Parameters!*/
+		RTSX_BITOP(sc, RTSX_LDO_VCC_CFG0, RTSX_RTS5260_DVCC_TUNE_MASK, RTSX_RTS5260_DVCC_33);
+		RTSX_BITOP(sc, RTSX_PCLK_CTL, RTSX_PCLK_MODE_SEL, RTSX_PCLK_MODE_SEL);
+		RTSX_BITOP(sc, RTSX_L1SUB_CONFIG1, RTSX_AUX_CLK_ACTIVE_SEL_MASK, RTSX_MAC_CKSW_DONE);
+		/* Rest L1SUB Config */
+		RTSX_CLR(sc, RTSX_L1SUB_CONFIG3, 0xFF);
+		RTSX_BITOP(sc, RTSX_PM_CLK_FORCE_CTL, RTSX_CLK_PM_EN, RTSX_CLK_PM_EN);
+		RTSX_BITOP(sc, RTSX_PWR_GATE_CTRL, RTSX_PWR_GATE_EN, RTSX_PWR_GATE_EN);
+		RTSX_BITOP(sc, RTSX_RB_FLUSH, RTSX_U_AUTO_DMA_EN_MASK, RTSX_U_AUTO_DMA_DISABLE);
+		if (sc->rtsx_flags & RTSX_F_REVERSE_SOCKET)
+			RTSX_BITOP(sc, RTSX_PETXCFG, 0xB0, 0xB0);
+		else
+			RTSX_BITOP(sc, RTSX_PETXCFG, 0xB0, 0x80);
+		RTSX_BITOP(sc, RTSX_OBFF_CFG, RTSX_OBFF_EN_MASK, RTSX_OBFF_DISABLE);
+		break;
 	case RTSX_RTL8402:
 	case RTSX_RTL8411:
 		RTSX_WRITE(sc, RTSX_SD30_CMD_DRIVE_SEL, sc->rtsx_sd30_drive_sel_3v3);
@@ -1308,6 +1333,22 @@ rtsx_rts5249_fill_driving(struct rtsx_softc *sc)
 				     {0x55, 0x55, 0x5C},
 				     {0xFF, 0xFF, 0xFF},
 				     {0x96, 0x96, 0x96},
+	};
+	RTSX_WRITE(sc, RTSX_SD30_CLK_DRIVE_SEL, driving_3v3[sc->rtsx_sd30_drive_sel_3v3][0]);
+	RTSX_WRITE(sc, RTSX_SD30_CMD_DRIVE_SEL, driving_3v3[sc->rtsx_sd30_drive_sel_3v3][1]);
+	RTSX_WRITE(sc, RTSX_SD30_DAT_DRIVE_SEL, driving_3v3[sc->rtsx_sd30_drive_sel_3v3][2]);
+
+	return (0);
+}
+
+static int
+rtsx_rts5260_fill_driving(struct rtsx_softc *sc)
+{
+	u_char	driving_3v3[4][3] = {
+				     {0x11, 0x11, 0x11},
+				     {0x22, 0x22, 0x22},
+				     {0x55, 0x55, 0x55},
+				     {0x33, 0x33, 0x33},
 	};
 	RTSX_WRITE(sc, RTSX_SD30_CLK_DRIVE_SEL, driving_3v3[sc->rtsx_sd30_drive_sel_3v3][0]);
 	RTSX_WRITE(sc, RTSX_SD30_CMD_DRIVE_SEL, driving_3v3[sc->rtsx_sd30_drive_sel_3v3][1]);
@@ -1462,6 +1503,10 @@ rtsx_bus_power_off(struct rtsx_softc *sc)
 			   RTSX_SD_PWR_OFF | RTSX_PMOS_STRG_400mA);
 		RTSX_CLR(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_PWR_MASK);
 		break;
+	case RTSX_RTS5260:
+		RTSX_BITOP(sc, RTSX_LDO_VCC_CFG1, RTSX_LDO_POW_SDVDD1_MASK, RTSX_LDO_POW_SDVDD1_OFF);
+		RTSX_BITOP(sc, RTSX_LDO_CONFIG2, RTSX_DV331812_POWERON, RTSX_DV331812_POWEROFF);
+		break;
 	case RTSX_RTL8402:
 	case RTSX_RTL8411:
 	case RTSX_RTL8411B:
@@ -1498,6 +1543,7 @@ rtsx_bus_power_off(struct rtsx_softc *sc)
 		break;
 	case RTSX_RTS525A:
 	case RTSX_RTS5249:
+	case RTSX_RTS5260:
 		RTSX_WRITE(sc, RTSX_CARD_PULL_CTL1, 0x66);
 		RTSX_WRITE(sc, RTSX_CARD_PULL_CTL2, RTSX_PULL_CTL_DISABLE12);
 		RTSX_WRITE(sc, RTSX_CARD_PULL_CTL3, RTSX_PULL_CTL_DISABLE3);
@@ -1565,6 +1611,7 @@ rtsx_bus_power_on(struct rtsx_softc *sc)
 		break;
 	case RTSX_RTS525A:
 	case RTSX_RTS5249:
+	case RTSX_RTS5260:
 		RTSX_WRITE(sc, RTSX_CARD_PULL_CTL1, 0x66);
 		RTSX_WRITE(sc, RTSX_CARD_PULL_CTL2, RTSX_PULL_CTL_ENABLE12);
 		RTSX_WRITE(sc, RTSX_CARD_PULL_CTL3, RTSX_PULL_CTL_ENABLE3);
@@ -1651,6 +1698,26 @@ rtsx_bus_power_on(struct rtsx_softc *sc)
 		RTSX_BITOP(sc, RTSX_CARD_PWR_CTL, RTSX_SD_PWR_MASK, RTSX_SD_PWR_ON);
 		RTSX_BITOP(sc, RTSX_PWR_GATE_CTRL, RTSX_LDO3318_PWR_MASK,
 			   RTSX_LDO3318_VCC1 | RTSX_LDO3318_VCC2);
+		break;
+	case RTSX_RTS5260:
+		RTSX_BITOP(sc, RTSX_LDO_CONFIG2, RTSX_DV331812_VDD1, RTSX_DV331812_VDD1);
+		RTSX_BITOP(sc, RTSX_LDO_VCC_CFG0, RTSX_RTS5260_DVCC_TUNE_MASK, RTSX_RTS5260_DVCC_33);
+		RTSX_BITOP(sc, RTSX_LDO_VCC_CFG1, RTSX_LDO_POW_SDVDD1_MASK, RTSX_LDO_POW_SDVDD1_ON);
+		RTSX_BITOP(sc, RTSX_LDO_CONFIG2, RTSX_DV331812_POWERON, RTSX_DV331812_POWERON);
+
+		DELAY(20000);
+
+		/* Initialize SD_CFG1 register */
+		RTSX_WRITE(sc, RTSX_SD_CFG1, RTSX_CLK_DIVIDE_128 | RTSX_SD20_MODE);
+		RTSX_WRITE(sc, RTSX_SD_SAMPLE_POINT_CTL, RTSX_SD20_RX_POS_EDGE);
+		RTSX_CLR(sc, RTSX_SD_PUSH_POINT_CTL, 0xff);
+		RTSX_BITOP(sc, RTSX_CARD_STOP, RTSX_MS_STOP | RTSX_SD_CLR_ERR,
+			   RTSX_MS_STOP | RTSX_SD_CLR_ERR);
+		/* Reset SD_CFG3 register */
+		RTSX_CLR(sc, RTSX_SD_CFG3, RTSX_SD30_CLK_END_EN);
+		RTSX_CLR(sc, RTSX_REG_SD_STOP_SDCLK_CFG,
+			 RTSX_SD30_CLK_STOP_CFG_EN | RTSX_SD30_CLK_STOP_CFG0 | RTSX_SD30_CLK_STOP_CFG1);
+		RTSX_CLR(sc, RTSX_REG_PRE_RW_MODE, RTSX_EN_INFINITE_MODE);
 		break;
 	case RTSX_RTL8402:
 	case RTSX_RTL8411:
@@ -2221,6 +2288,15 @@ rtsx_stop_cmd(struct rtsx_softc *sc)
 
 	/* Stop DMA transfer. */
 	WRITE4(sc, RTSX_HDBCTLR, RTSX_STOP_DMA);
+
+	switch (sc->rtsx_device_id) {
+	case RTSX_RTS5260:
+		rtsx_write(sc, RTSX_RTS5260_DMA_RST_CTL_0,
+			   RTSX_RTS5260_DMA_RST | RTSX_RTS5260_ADMA3_RST,
+			   RTSX_RTS5260_DMA_RST | RTSX_RTS5260_ADMA3_RST);
+		rtsx_write(sc, RTSX_RBCTL, RTSX_RB_FLUSH, RTSX_RB_FLUSH);
+		break;
+	}
 
 	rtsx_write(sc, RTSX_DMACTL, RTSX_DMA_RST, RTSX_DMA_RST);
 
@@ -3322,6 +3398,12 @@ rtsx_mmcbr_switch_vccq(device_t bus, device_t child __unused)
 						    (val & RTSX_PHY_TUNE_VOLTAGE_MASK) | RTSX_PHY_TUNE_VOLTAGE_3V3)))
 				return (error);
 			if ((error = rtsx_rts5249_fill_driving(sc)))
+				return (error);
+			break;
+		case RTSX_RTS5260:
+			RTSX_BITOP(sc, RTSX_LDO_CONFIG2, RTSX_DV331812_VDD1, RTSX_DV331812_VDD1);
+			RTSX_BITOP(sc, RTSX_LDO_DV18_CFG, RTSX_DV331812_MASK, RTSX_DV331812_33);
+			if ((error = rtsx_rts5260_fill_driving(sc)))
 				return (error);
 			break;
 		case RTSX_RTL8402:
