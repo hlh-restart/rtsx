@@ -57,7 +57,7 @@ kldload rtsx
 
  - RTS5209 under releng/13.0 (Lenovo ThinkPad L520, Packard Bell EN LV44HC i3-2328M)
  - RTS5227 under stable/11, releng/12.1 and releng/13.0
-   (HP ProBook 430 g2, HP Elitebook 820 G2, Lenovo ThinkPad S440/T450/T450s/X270/yoga 1,
+   (HP ProBook 430 g2, HP Elitebook 820 G2, Lenovo ThinkPad S440/T450/T450s/X250/X270/yoga 1,
    Fujitsu H730)
  - RTS5229 under releng/12.1 and releng/13.0 (Lenovo IdeaPad 120S-14IAP, ASUS GL553VE)
  - RTS522A under releng/12.1 and releng/13.0

@@ -3992,6 +3992,8 @@ rtsx_resume(device_t dev)
 {
 	device_printf(dev, "Resume\n");
 
+	rtsx_init(device_get_softc(dev));
+
 	bus_generic_resume(dev);
 
 	return (0);
