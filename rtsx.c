@@ -172,7 +172,7 @@ struct rtsx_softc {
 #define	RTSX_RTL8411		0x5289
 #define	RTSX_RTL8411B		0x5287
 
-#define	RTSX_VERSION		"2.1f-2"
+#define	RTSX_VERSION		"2.1f-3"
 
 static const struct rtsx_device {
 	uint16_t	vendor_id;
@@ -1035,8 +1035,12 @@ rtsx_init(struct rtsx_softc *sc)
 	/* Enable interrupt write-clear (default is read-clear). */
 	RTSX_CLR(sc, RTSX_NFTS_TX_CTRL, RTSX_INT_READ_CLR);
 
-	if (sc->rtsx_device_id == RTSX_RTS525A)
+	switch (sc->rtsx_device_id) {
+	case RTSX_RTS525A:
+	case RTSX_RTS5260:
 		RTSX_BITOP(sc, RTSX_PM_CLK_FORCE_CTL, 1, 1);
+		break;
+	}
 
 	/* OC power down. */
 	RTSX_BITOP(sc, RTSX_FPDCTL, RTSX_SD_OC_POWER_DOWN, RTSX_SD_OC_POWER_DOWN);
@@ -1228,7 +1232,7 @@ rtsx_init(struct rtsx_softc *sc)
 		else
 			RTSX_BITOP(sc, RTSX_PETXCFG, 0xB0, 0x80);
 		RTSX_BITOP(sc, RTSX_OBFF_CFG, RTSX_OBFF_EN_MASK, RTSX_OBFF_DISABLE);
-		RTSX_CLR(sc, RTSX_RTS522A_PM_CTRL3, 0x10);
+		RTSX_CLR(sc, RTSX_RTS5260_DVCC_CTRL, RTSX_RTS5260_DVCC_OCP_EN | RTSX_RTS5260_DVCC_OCP_CL_EN);
 		break;
 	case RTSX_RTL8402:
 	case RTSX_RTL8411:
@@ -1478,7 +1482,12 @@ rtsx_bus_power_off(struct rtsx_softc *sc)
 		break;
 	case RTSX_RTS5260:
 		rtsx_stop_cmd(sc);
-		rtsx_mmcbr_switch_vccq(sc->rtsx_dev, NULL);
+		/* Switch vccq to 330 */
+		RTSX_BITOP(sc, RTSX_LDO_CONFIG2, RTSX_DV331812_VDD1, RTSX_DV331812_VDD1);
+		RTSX_BITOP(sc, RTSX_LDO_DV18_CFG, RTSX_DV331812_MASK, RTSX_DV331812_33);
+		RTSX_CLR(sc, RTSX_SD_PAD_CTL, RTSX_SD_IO_USING_1V8);
+		rtsx_rts5260_fill_driving(sc);
+
 		RTSX_BITOP(sc, RTSX_LDO_VCC_CFG1, RTSX_LDO_POW_SDVDD1_MASK, RTSX_LDO_POW_SDVDD1_OFF);
 		RTSX_BITOP(sc, RTSX_LDO_CONFIG2, RTSX_DV331812_POWERON, RTSX_DV331812_POWEROFF);
 		break;
