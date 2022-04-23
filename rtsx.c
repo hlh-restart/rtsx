@@ -933,7 +933,7 @@ rtsx_init(struct rtsx_softc *sc)
 		device_printf(sc->rtsx_dev, "rtsx_init() rtsx_flags: 0x%04x\n", sc->rtsx_flags);
 
 	/* Enable interrupts. */
-	sc->rtsx_intr_enabled = RTSX_TRANS_OK_INT_EN | RTSX_TRANS_FAIL_INT_EN | RTSX_SD_INT_EN | RTSX_MS_INT_EN;
+	sc->rtsx_intr_enabled = RTSX_TRANS_OK_INT_EN | RTSX_TRANS_FAIL_INT_EN | RTSX_SD_INT_EN;
 	WRITE4(sc, RTSX_BIER, sc->rtsx_intr_enabled);
 
 	/* Power on SSC clock. */
@@ -1278,7 +1278,13 @@ rtsx_init(struct rtsx_softc *sc)
 		else
 			RTSX_BITOP(sc, RTSX_PETXCFG, 0xB0, 0x80);
 		RTSX_BITOP(sc, RTSX_OBFF_CFG, RTSX_OBFF_EN_MASK, RTSX_OBFF_DISABLE);
+
 		RTSX_CLR(sc, RTSX_RTS5260_DVCC_CTRL, RTSX_RTS5260_DVCC_OCP_EN | RTSX_RTS5260_DVCC_OCP_CL_EN);
+
+		/* CLKREQ# PIN will be forced to drive low. */
+		RTSX_BITOP(sc, RTSX_PETXCFG, RTSX_FORCE_CLKREQ_DELINK_MASK, RTSX_FORCE_CLKREQ_LOW);
+
+		RTSX_CLR(sc, RTSX_RTS522A_PM_CTRL3,  0x10);
 		break;
 	case RTSX_RTL8402:
 	case RTSX_RTL8411:
