@@ -172,7 +172,7 @@ struct rtsx_softc {
 #define	RTSX_RTL8411		0x5289
 #define	RTSX_RTL8411B		0x5287
 
-#define	RTSX_VERSION		"2.1f-4"
+#define	RTSX_VERSION		"2.1g"
 
 static const struct rtsx_device {
 	uint16_t	vendor_id;
@@ -2293,12 +2293,14 @@ rtsx_stop_cmd(struct rtsx_softc *sc)
 		rtsx_write(sc, RTSX_RTS5260_DMA_RST_CTL_0,
 			   RTSX_RTS5260_DMA_RST | RTSX_RTS5260_ADMA3_RST,
 			   RTSX_RTS5260_DMA_RST | RTSX_RTS5260_ADMA3_RST);
+		rtsx_write(sc, RTSX_RBCTL, RTSX_RB_FLUSH, RTSX_RB_FLUSH);
 		break;
-	}
-	
-	rtsx_write(sc, RTSX_DMACTL, RTSX_DMA_RST, RTSX_DMA_RST);
+	default:
+		rtsx_write(sc, RTSX_DMACTL, RTSX_DMA_RST, RTSX_DMA_RST);
 
-	rtsx_write(sc, RTSX_RBCTL, RTSX_RB_FLUSH, RTSX_RB_FLUSH);
+		rtsx_write(sc, RTSX_RBCTL, RTSX_RB_FLUSH, RTSX_RB_FLUSH);
+	break;
+	}
 }
 
 /*
