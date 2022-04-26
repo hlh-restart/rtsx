@@ -2339,12 +2339,14 @@ rtsx_stop_cmd(struct rtsx_softc *sc)
 		rtsx_write(sc, RTSX_RTS5260_DMA_RST_CTL_0,
 			   RTSX_RTS5260_DMA_RST | RTSX_RTS5260_ADMA3_RST,
 			   RTSX_RTS5260_DMA_RST | RTSX_RTS5260_ADMA3_RST);
+		rtsx_write(sc, RTSX_RBCTL, RTSX_RB_FLUSH, RTSX_RB_FLUSH);
+		break;
+	default:
+		rtsx_write(sc, RTSX_DMACTL, RTSX_DMA_RST, RTSX_DMA_RST);
+
+		rtsx_write(sc, RTSX_RBCTL, RTSX_RB_FLUSH, RTSX_RB_FLUSH);
 		break;
 	}
-
-	rtsx_write(sc, RTSX_DMACTL, RTSX_DMA_RST, RTSX_DMA_RST);
-
-	rtsx_write(sc, RTSX_RBCTL, RTSX_RB_FLUSH, RTSX_RB_FLUSH);
 }
 
 /*
