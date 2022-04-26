@@ -2299,7 +2299,7 @@ rtsx_stop_cmd(struct rtsx_softc *sc)
 		rtsx_write(sc, RTSX_DMACTL, RTSX_DMA_RST, RTSX_DMA_RST);
 
 		rtsx_write(sc, RTSX_RBCTL, RTSX_RB_FLUSH, RTSX_RB_FLUSH);
-	break;
+		break;
 	}
 }
 
