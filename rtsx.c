@@ -3909,6 +3909,27 @@ static devclass_t rtsx_devclass;
 
 DEFINE_CLASS_0(rtsx, rtsx_driver, rtsx_methods, sizeof(struct rtsx_softc));
 DRIVER_MODULE(rtsx, pci, rtsx_driver, rtsx_devclass, NULL, NULL);
+
+/* For Plug and Play */
+static struct rtsx_pciids {
+	uint16_t	device;
+	const char	*desc;
+} rtsx_ids[] = {
+	{ RTSX_RTS5209, "Realtek RTS5209 PCIe SD Card Reader" },
+	{ RTSX_RTS5227, "Realtek RTS5227 PCIe SD Card Reader" },
+	{ RTSX_RTS5229, "Realtek RTS5229 PCIe SD Card Reader" },
+	{ RTSX_RTS522A, "Realtek RTS522A PCIe SD Card Reader" },
+	{ RTSX_RTS525A, "Realtek RTS525A PCIe SD Card Reader" },
+	{ RTSX_RTS5249, "Realtek RTS5249 PCIe SD Card Reader" },
+	{ RTSX_RTS5260, "Realtek RTS5260 PCIe SD Card Reader" },
+	{ RTSX_RTL8402, "Realtek RTL8402 PCIe SD Card Reader" },
+	{ RTSX_RTL8411, "Realtek RTL8411 PCIe SD Card Reader" },
+	{ RTSX_RTL8411B, "Realtek RTL8411B PCIe SD Card Reader" },
+};
+
+MODULE_PNP_INFO("U16:device;D:#;T:vendor=0x10ec", pci, rtsx,
+		rtsx_ids, nitems(rtsx_ids));
+
 #ifndef MMCCAM
 MMC_DECLARE_BRIDGE(rtsx);
 #endif /* !MMCCAM */
