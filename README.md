@@ -72,6 +72,8 @@ kldload rtsx
    To adapt the driver add in loader.conf(5) ```dev.rtsx.0.inversion=1```.
  - Mounting a filesystem with write access on a card write protected may involve a kernel crash.
  - Suspend/Resume do not work under MMCCAM.
+ - For some chips (e.g. RTS5260) after `devctl disable/enable` or `kldunload/kldload`
+   the driver can't detect a card correctly.
 
 #### NOTE:
 
