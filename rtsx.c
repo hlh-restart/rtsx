@@ -3900,10 +3900,15 @@ static device_method_t rtsx_methods[] = {
 	DEVMETHOD_END
 };
 
+DEFINE_CLASS_0(rtsx, rtsx_driver, rtsx_methods, sizeof(struct rtsx_softc));
+
+#if  __FreeBSD_version >= 1400058
+DRIVER_MODULE(rtsx, pci, rtsx_driver, NULL, NULL);
+#else
 static devclass_t rtsx_devclass;
 
-DEFINE_CLASS_0(rtsx, rtsx_driver, rtsx_methods, sizeof(struct rtsx_softc));
 DRIVER_MODULE(rtsx, pci, rtsx_driver, rtsx_devclass, NULL, NULL);
+#endif /* __FreeBSD_version >= 1400058 */
 
 /* For Plug and Play */
 MODULE_PNP_INFO("U16:device;D:#;T:vendor=0x10ec", pci, rtsx,
