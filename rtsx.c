@@ -197,7 +197,7 @@ static const struct rtsx_inversion_model {
 	char	*product;
 } rtsx_inversion_models[] = {
 	{ "LENOVO",		"ThinkPad T470p",	"20J7S0PM00"},
-	{ "LENOVO",             "ThinkPad X13 Gen 1",   "20UF000QRT"},
+	{ "LENOVO",		"ThinkPad X13 Gen 1",	"20UF000QRT"},
 	{ NULL,			NULL,			NULL}
 };
 
