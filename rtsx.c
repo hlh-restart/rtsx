@@ -361,7 +361,7 @@ static int	rtsx_resume(device_t dev);
  * which describes SD/MMC commands to run, and other parameters. The chip
  * runs the command queue when a special bit in the RTSX_HCBAR register is
  * set and signals completion with the RTSX_TRANS_OK_INT interrupt.
- * Each command is encoded as a 4 byte sequence containing command number
+ * Each command is encoded as a 4 bytes sequence containing command number
  * (read, write, or check a host controller register), a register address,
  * and a data bit-mask and value.
  * SD/MMC commands which do not transfer any data from/to the card only use
@@ -1742,7 +1742,7 @@ rtsx_bus_power_on(struct rtsx_softc *sc)
 }
 
 /*
- * Set but width.
+ * Set bus width.
  */
 static int
 rtsx_set_bus_width(struct rtsx_softc *sc, enum mmc_bus_width width)
