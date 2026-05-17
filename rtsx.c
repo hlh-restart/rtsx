@@ -139,7 +139,7 @@ struct rtsx_softc {
 	uint64_t	rtsx_write_count;	/* count of write operations */
 	bool		rtsx_discovery_mode;	/* are we in discovery mode? */
 	bool		rtsx_tuning_mode;	/* are we tuning */
-	bool		rtsx_double_clk;	/* double clock freqency */
+	bool		rtsx_double_clk;	/* double clock frequency */
 	bool		rtsx_vpclk;		/* voltage at Pulse-width Modulation(PWM) clock? */
 	uint8_t		rtsx_ssc_depth;		/* Spread spectrum clocking depth */
 	uint8_t		rtsx_card_drive_sel;	/* value for RTSX_CARD_DRIVE_SEL */
@@ -633,10 +633,10 @@ rtsx_handle_card_present(struct rtsx_softc *sc)
 		 * (sometimes the card detect pin stabilizes
 		 * before the other pins have made good contact).
 		 */
-		taskqueue_enqueue_timeout(taskqueue_swi_giant,
+		taskqueue_enqueue_timeout(taskqueue_bus,
 					  &sc->rtsx_card_insert_task, -hz);
 	} else if (was_present && !is_present) {
-		taskqueue_enqueue(taskqueue_swi_giant, &sc->rtsx_card_remove_task);
+		taskqueue_enqueue(taskqueue_bus, &sc->rtsx_card_remove_task);
 	}
 }
 
@@ -648,6 +648,9 @@ rtsx_card_task(void *arg, int pending __unused)
 {
 	struct rtsx_softc *sc = arg;
 
+#ifndef MMCCAM
+	bus_topo_lock();
+#endif
 	if (rtsx_is_card_present(sc)) {
 		sc->rtsx_flags |= RTSX_F_CARD_PRESENT;
 		/* Card is present, attach if necessary. */
@@ -664,9 +667,7 @@ rtsx_card_task(void *arg, int pending __unused)
 			sc->rtsx_cam_status = 1;
 			mmc_cam_sim_discover(&sc->rtsx_mmc_sim);
 #else  /* !MMCCAM */
-			RTSX_LOCK(sc);
-			sc->rtsx_mmc_dev = device_add_child(sc->rtsx_dev, "mmc", -1);
-			RTSX_UNLOCK(sc);
+			sc->rtsx_mmc_dev = device_add_child(sc->rtsx_dev, "mmc", DEVICE_UNIT_ANY);
 			if (sc->rtsx_mmc_dev == NULL) {
 				device_printf(sc->rtsx_dev, "Adding MMC bus failed\n");
 			} else {
@@ -699,6 +700,9 @@ rtsx_card_task(void *arg, int pending __unused)
 #endif /* MMCCAM */
 		}
 	}
+#ifndef MMCCAM
+	bus_topo_unlock();
+#endif
 }
 
 static bool
@@ -2833,7 +2837,7 @@ rtsx_xfer_start(struct rtsx_softc *sc)
 	} else {
 		dma_dir = RTSX_DMA_DIR_TO_CARD;
 		/*
-		 * Use transfer mode AUTO_WRITE3, wich assumes we've already
+		 * Use transfer mode AUTO_WRITE3, which assumes we've already
 		 * sent the write command and gotten the response, and will
 		 * send CMD 12 manually after writing.
 		 */
@@ -3690,7 +3694,7 @@ rtsx_attach(device_t dev)
 	sc->rtsx_mem_btag = rman_get_bustag(sc->rtsx_mem_res);
 	sc->rtsx_mem_bhandle = rman_get_bushandle(sc->rtsx_mem_res);
 
-	TIMEOUT_TASK_INIT(taskqueue_swi_giant, &sc->rtsx_card_insert_task, 0,
+	TIMEOUT_TASK_INIT(taskqueue_bus, &sc->rtsx_card_insert_task, 0,
 			  rtsx_card_task, sc);
 	TASK_INIT(&sc->rtsx_card_remove_task, 0, rtsx_card_task, sc);
 
@@ -3789,8 +3793,8 @@ rtsx_detach(device_t dev)
 		return (error);
 	sc->rtsx_mmc_dev = NULL;
 
-	taskqueue_drain_timeout(taskqueue_swi_giant, &sc->rtsx_card_insert_task);
-	taskqueue_drain(taskqueue_swi_giant, &sc->rtsx_card_remove_task);
+	taskqueue_drain_timeout(taskqueue_bus, &sc->rtsx_card_insert_task);
+	taskqueue_drain(taskqueue_bus, &sc->rtsx_card_remove_task);
 
 	/* Teardown the state in our softc created in our attach routine. */
 	rtsx_dma_free(sc);
@@ -3900,14 +3904,7 @@ static device_method_t rtsx_methods[] = {
 };
 
 DEFINE_CLASS_0(rtsx, rtsx_driver, rtsx_methods, sizeof(struct rtsx_softc));
-
-#if  __FreeBSD_version >= 1400058
 DRIVER_MODULE(rtsx, pci, rtsx_driver, NULL, NULL);
-#else
-static devclass_t rtsx_devclass;
-
-DRIVER_MODULE(rtsx, pci, rtsx_driver, rtsx_devclass, NULL, NULL);
-#endif /* __FreeBSD_version >= 1400058 */
 
 /* For Plug and Play */
 MODULE_PNP_INFO("U16:device;D:#;T:vendor=0x10ec", pci, rtsx,
